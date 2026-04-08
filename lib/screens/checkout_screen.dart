@@ -144,25 +144,28 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               redirectUrl: redirectUrl,
               orderId: orderId,
               jumlahTiket: _ticketCount,
+              totalHarga: _totalPrice, // ← TAMBAHKAN
+              destinasiId: widget.destinasi['id_destinasi'], // ← TAMBAHKAN
+              tanggalBerangkat: _selectedDate!, // ← TAMBAHKAN
+              metodeBayar: 'midtrans_snap', // ← TAMBAHKAN
               namaDestinasi: namaDestinasi,
             ),
           ),
         );
-      } else {
-        throw 'Gagal mendapatkan link pembayaran dari Midtrans.';
-      }
-    } catch (e) {
-      if (mounted) {
+      } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal memproses pembayaran: $e')),
+          const SnackBar(content: Text('Gagal memproses pembayaran.')),
         );
       }
-    } finally {
+    } catch (e) {
+      debugPrint('Error during payment: $e');
       if (mounted) {
-        setState(() {
-          _isProcessingPayment = false;
-        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
+    } finally {
+      if (mounted) setState(() => _isProcessingPayment = false);
     }
   }
 

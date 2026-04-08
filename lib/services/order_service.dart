@@ -11,7 +11,7 @@ class OrderService {
     required int totalHarga,
     required int destinasiId,
     required DateTime tanggalBerangkat,
-    required String userId, // UUID dari Supabase Auth
+    required String userId,
     required String metodeBayar,
   }) async {
     try {

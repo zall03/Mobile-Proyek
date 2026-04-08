@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/midtrans_service.dart';
 import 'tiket.dart';
 import '../services/order_service.dart';
@@ -8,6 +9,10 @@ class PaymentWebView extends StatefulWidget {
   final String redirectUrl;
   final String orderId;
   final int jumlahTiket;
+  final int totalHarga; // ← TAMBAHKAN
+  final int destinasiId; // ← TAMBAHKAN
+  final DateTime tanggalBerangkat; // ← TAMBAHKAN
+  final String metodeBayar; // ← TAMBAHKAN
   final String namaDestinasi;
 
   const PaymentWebView({
@@ -15,6 +20,10 @@ class PaymentWebView extends StatefulWidget {
     required this.redirectUrl,
     required this.orderId,
     required this.jumlahTiket,
+    required this.totalHarga,
+    required this.destinasiId,
+    required this.tanggalBerangkat,
+    required this.metodeBayar,
     required this.namaDestinasi,
   });
 
@@ -25,6 +34,7 @@ class PaymentWebView extends StatefulWidget {
 class _PaymentWebViewState extends State<PaymentWebView> {
   late final WebViewController _controller;
   bool _isPaymentComplete = false;
+  final supabase = Supabase.instance.client; // ← TAMBAHKAN INI
 
   @override
   void initState() {
@@ -59,7 +69,6 @@ class _PaymentWebViewState extends State<PaymentWebView> {
     if (_isPaymentComplete) return;
     _isPaymentComplete = true;
 
-    // Cek status pembayaran ke Midtrans
     final status = await MidtransService.cekStatusPembayaran(widget.orderId);
     debugPrint('Payment status: $status');
 
@@ -69,6 +78,14 @@ class _PaymentWebViewState extends State<PaymentWebView> {
 
       if (user == null) {
         debugPrint('User tidak ditemukan');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('User tidak ditemukan, silakan login ulang'),
+            ),
+          );
+          Navigator.pop(context);
+        }
         return;
       }
 
@@ -78,7 +95,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
         totalHarga: widget.totalHarga,
         destinasiId: widget.destinasiId,
         tanggalBerangkat: widget.tanggalBerangkat,
-        userId: user.id, // ← perbaiki di sini (huruf I besar)
+        userId: user.id,
         metodeBayar: widget.metodeBayar,
       );
 
@@ -106,6 +123,8 @@ class _PaymentWebViewState extends State<PaymentWebView> {
             ),
           ),
         );
+        // Tetap arahkan ke halaman tiket meskipun gagal simpan? Terserah Anda
+        // Atau biarkan di webview
       }
     } else {
       if (mounted) {

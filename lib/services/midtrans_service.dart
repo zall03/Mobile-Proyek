@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 
 class MidtransService {
-  static const String serverKey = '';
+  static const String serverKey = 'Mid-server-Cucxsus7Yi4uIcCcYoji0DXN';
 
   static Future<String?> createTransaction({
     required String orderId,
@@ -17,7 +17,10 @@ class MidtransService {
         'Basic ${base64Encode(utf8.encode('$serverKey:'))}';
 
     final Map<String, dynamic> body = {
-      "transaction_details": {"order_id": orderId, "gross_amount": grossAmount},
+      "transaction_details": {
+        "order_id": orderId,
+        "gross_amount": grossAmount, // int
+      },
       "item_details": [
         {
           "id": "TIK-${DateTime.now().millisecondsSinceEpoch}",
@@ -27,10 +30,14 @@ class MidtransService {
         },
       ],
       "customer_details": {"first_name": customerName, "email": customerEmail},
-      // 🔥 TAMBAHKAN INI - URL callback setelah pembayaran
-      "finish_url": "https://your-app-scheme.com/payment-finish",
-      "error_url": "https://your-app-scheme.com/payment-error",
+      // Optional: custom scheme untuk redirect
+      "finish_url": "myapp://payment-success",
+      "error_url": "myapp://payment-error",
     };
+
+    // Debug print
+    final String jsonBody = jsonEncode(body);
+    debugPrint('Request Body: $jsonBody');
 
     try {
       final response = await http.post(
@@ -40,10 +47,10 @@ class MidtransService {
           'Content-Type': 'application/json',
           'Authorization': basicAuth,
         },
-        body: jsonEncode(body),
+        body: jsonBody,
       );
 
-      debugPrint('Midtrans Response: ${response.body}'); // Buat debugging
+      debugPrint('Midtrans Response: ${response.body}');
 
       if (response.statusCode == 201) {
         final data = jsonDecode(response.body);

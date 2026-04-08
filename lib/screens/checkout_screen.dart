@@ -144,10 +144,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               redirectUrl: redirectUrl,
               orderId: orderId,
               jumlahTiket: _ticketCount,
-              totalHarga: _totalPrice, // ← TAMBAHKAN
-              destinasiId: widget.destinasi['id_destinasi'], // ← TAMBAHKAN
-              tanggalBerangkat: _selectedDate!, // ← TAMBAHKAN
-              metodeBayar: 'midtrans_snap', // ← TAMBAHKAN
+              totalHarga: _totalPrice,
+              destinasiId: widget.destinasi['id_destinasi'],
+              tanggalBerangkat: _selectedDate!,
+              metodeBayar: 'midtrans_snap',
               namaDestinasi: namaDestinasi,
             ),
           ),

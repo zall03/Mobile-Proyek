@@ -9,10 +9,10 @@ class PaymentWebView extends StatefulWidget {
   final String redirectUrl;
   final String orderId;
   final int jumlahTiket;
-  final int totalHarga; // ← TAMBAHKAN
-  final int destinasiId; // ← TAMBAHKAN
-  final DateTime tanggalBerangkat; // ← TAMBAHKAN
-  final String metodeBayar; // ← TAMBAHKAN
+  final int totalHarga;
+  final int destinasiId;
+  final DateTime tanggalBerangkat;
+  final String metodeBayar;
   final String namaDestinasi;
 
   const PaymentWebView({
@@ -34,7 +34,7 @@ class PaymentWebView extends StatefulWidget {
 class _PaymentWebViewState extends State<PaymentWebView> {
   late final WebViewController _controller;
   bool _isPaymentComplete = false;
-  final supabase = Supabase.instance.client; // ← TAMBAHKAN INI
+  final supabase = Supabase.instance.client;
 
   @override
   void initState() {
@@ -43,21 +43,35 @@ class _PaymentWebViewState extends State<PaymentWebView> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
-          onPageFinished: (String url) {
-            debugPrint('Page finished: $url');
-            if (url.contains('payment-finish') ||
-                url.contains('success') ||
-                url.contains('finish')) {
+          onNavigationRequest: (NavigationRequest request) {
+            final url = request.url;
+            // Tangkap custom scheme sebelum WebView mencoba memuatnya
+            if (url.startsWith('myapp://payment-success')) {
               _handlePaymentSuccess();
-            } else if (url.contains('payment-error') || url.contains('error')) {
+              return NavigationDecision.prevent; // Jangan load URL
+            } else if (url.startsWith('myapp://payment-error')) {
+              _handlePaymentError();
+              return NavigationDecision.prevent;
+            }
+            return NavigationDecision.navigate;
+          },
+          onUrlChange: (UrlChange change) {
+            // Backup detection jika perlu
+            final url = change.url ?? '';
+            if (url.startsWith('myapp://payment-success')) {
+              _handlePaymentSuccess();
+            } else if (url.startsWith('myapp://payment-error')) {
               _handlePaymentError();
             }
           },
-          onUrlChange: (UrlChange change) {
-            debugPrint('URL changed to: ${change.url}');
-            if (change.url?.contains('payment-finish') == true ||
-                change.url?.contains('success') == true) {
+          onPageFinished: (String url) {
+            // Fallback untuk URL internal Midtrans
+            if (url.contains('#/success') ||
+                url.contains('transaction_status=settlement')) {
               _handlePaymentSuccess();
+            } else if (url.contains('#/error') ||
+                url.contains('transaction_status=deny')) {
+              _handlePaymentError();
             }
           },
         ),
@@ -70,24 +84,10 @@ class _PaymentWebViewState extends State<PaymentWebView> {
     _isPaymentComplete = true;
 
     final status = await MidtransService.cekStatusPembayaran(widget.orderId);
-    debugPrint('Payment status: $status');
-
     if (status == 'settlement' || status == 'capture') {
       final orderService = OrderService();
       final user = supabase.auth.currentUser;
-
-      if (user == null) {
-        debugPrint('User tidak ditemukan');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('User tidak ditemukan, silakan login ulang'),
-            ),
-          );
-          Navigator.pop(context);
-        }
-        return;
-      }
+      if (user == null) return;
 
       final result = await orderService.saveOrder(
         orderId: widget.orderId,
@@ -123,8 +123,6 @@ class _PaymentWebViewState extends State<PaymentWebView> {
             ),
           ),
         );
-        // Tetap arahkan ke halaman tiket meskipun gagal simpan? Terserah Anda
-        // Atau biarkan di webview
       }
     } else {
       if (mounted) {

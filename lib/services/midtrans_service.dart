@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 
 class MidtransService {
-  static const String serverKey = 'Mid-server-Cucxsus7Yi4uIcCcYoji0DXN';
+  static const String serverKey = '';
 
   static Future<String?> createTransaction({
     required String orderId,
@@ -30,7 +30,6 @@ class MidtransService {
         },
       ],
       "customer_details": {"first_name": customerName, "email": customerEmail},
-      // Optional: custom scheme untuk redirect
       "finish_url": "myapp://payment-success",
       "error_url": "myapp://payment-error",
     };

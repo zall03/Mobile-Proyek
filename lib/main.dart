@@ -3,10 +3,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 import 'screens/splash_screen.dart';
 import 'screens/home_screen.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
+  await initializeDateFormatting('id_ID', null);
   await Supabase.initialize(
     url: 'https://zglovosnylnowriqeaya.supabase.co',
     anonKey: 'sb_publishable_p6ntwZ-oKKajwGV3lUhaHg_L1YUrhD0',
@@ -52,11 +53,11 @@ class _AuthGateState extends State<AuthGate> {
     _isLoading = false;
 
     _authSubscription = supabase.auth.onAuthStateChange.listen((data) {
-      print('DEBUG AUTH EVENT: ${data.event}'); // ← tambah ini
+      print('DEBUG AUTH EVENT: ${data.event}');
       if (!mounted) return;
       final event = data.event;
       if (event == AuthChangeEvent.signedIn) {
-        print('DEBUG: setState isLoggedIn = true'); // ← tambah ini
+        print('DEBUG: setState isLoggedIn = true');
         setState(() => _isLoggedIn = true);
       } else if (event == AuthChangeEvent.signedOut) {
         setState(() => _isLoggedIn = false);

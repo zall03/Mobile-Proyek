@@ -10,9 +10,10 @@
   </intent>
 </queries>
     <application
-        android:label="project2"
-        android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+    android:label="nama_aplikasi_anda"
+    android:name="${applicationName}"
+    android:icon="@mipmap/ic_launcher"
+    android:usesCleartextTraffic="true"> ```
         <activity
             android:name=".MainActivity"
             android:exported="true"

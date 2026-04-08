@@ -1,803 +1,505 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../model/review.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
+import 'checkout_screen.dart';
 
 class DetailDestinasiScreen extends StatefulWidget {
-  final Map<String, dynamic> destinasi;
+  final Map<String, dynamic> destinationData;
+  final List<Review> reviews;
 
-  const DetailDestinasiScreen({super.key, required this.destinasi});
+  const DetailDestinasiScreen({
+    Key? key,
+    required this.destinationData,
+    required this.reviews,
+  }) : super(key: key);
 
   @override
-  State<DetailDestinasiScreen> createState() => _DetailDestinasiScreenState();
+  _DetailDestinasiScreenState createState() => _DetailDestinasiScreenState();
 }
 
 class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
-  final _supabase = Supabase.instance.client;
-  final Color _brandBlue = const Color(0xFF1E7AC1);
-
-  List<Map<String, dynamic>> _ulasanList = [];
-  double _avgRating = 0.0;
+  final SupabaseClient supabase = Supabase.instance.client;
   bool _isWishlisted = false;
-  bool _isLoadingWishlist = false;
-  bool _isLoading = true;
+  bool _isLoading = false;
+  double _averageRating = 0.0;
+
+  final currencyFormatter = NumberFormat.currency(
+    locale: 'id_ID',
+    symbol: 'Rp. ',
+    decimalDigits: 0,
+  );
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _checkWishlist();
+    _calculateAverageRating();
   }
 
-  Future<void> _loadData() async {
-    setState(() => _isLoading = true);
-    await Future.wait([_loadUlasan(), _checkWishlist()]);
-    setState(() => _isLoading = false);
-  }
-
-  Future<void> _loadUlasan() async {
-    try {
-      final res = await _supabase
-          .from('ulasan')
-          .select('*, users(name)')
-          .eq('id_destinasi', widget.destinasi['id_destinasi'])
-          .order('tanggal_ulasan', ascending: false);
-
-      final list = List<Map<String, dynamic>>.from(res);
-      double avg = 0;
-      if (list.isNotEmpty) {
-        avg =
-            list
-                .map((e) => (e['rating'] as num).toDouble())
-                .reduce((a, b) => a + b) /
-            list.length;
-      }
-
+  void _calculateAverageRating() {
+    if (widget.reviews.isEmpty) {
       setState(() {
-        _ulasanList = list;
-        _avgRating = double.parse(avg.toStringAsFixed(1));
+        _averageRating = 0.0;
       });
-    } catch (e) {
-      debugPrint('Error ulasan: $e');
-    }
-  }
-
-  Future<void> _checkWishlist() async {
-    try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) return;
-
-      // Cari id user di public.users berdasarkan email
-      final userRes = await _supabase
-          .from('users')
-          .select('id')
-          .eq('email', user.email!)
-          .maybeSingle();
-
-      if (userRes == null) return;
-
-      final res = await _supabase
-          .from('wishlist')
-          .select()
-          .eq('id_user', userRes['id'])
-          .eq('id_destinasi', widget.destinasi['id_destinasi'])
-          .maybeSingle();
-
-      setState(() => _isWishlisted = res != null);
-    } catch (e) {
-      debugPrint('Error check wishlist: $e');
-    }
-  }
-
-  Future<void> _toggleWishlist() async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Login dulu untuk menambah wishlist!')),
-      );
       return;
     }
 
-    setState(() => _isLoadingWishlist = true);
+    double total = 0;
+    for (var review in widget.reviews) {
+      total += review.rating;
+    }
+    setState(() {
+      _averageRating = total / widget.reviews.length;
+    });
+  }
+
+  Future<void> _checkWishlist() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userEmail = prefs.getString('userEmail');
+    if (userEmail == null) return;
+
     try {
-      final userRes = await _supabase
+      final userRes = await supabase
           .from('users')
           .select('id')
-          .eq('email', user.email!)
+          .eq('email', userEmail)
           .maybeSingle();
 
       if (userRes == null) return;
       final userId = userRes['id'];
 
-      if (_isWishlisted) {
-        await _supabase
-            .from('wishlist')
-            .delete()
-            .eq('id_user', userId)
-            .eq('id_destinasi', widget.destinasi['id_destinasi']);
-        setState(() => _isWishlisted = false);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Dihapus dari wishlist')),
-          );
-        }
-      } else {
-        await _supabase.from('wishlist').insert({
-          'id_user': userId,
-          'id_destinasi': widget.destinasi['id_destinasi'],
+      final response = await supabase
+          .from('wishlist')
+          .select()
+          .eq('id_user', userId)
+          .eq('id_destinasi', widget.destinationData['id_destinasi'])
+          .maybeSingle();
+
+      if (response != null) {
+        setState(() {
+          _isWishlisted = true;
         });
-        setState(() => _isWishlisted = true);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Ditambahkan ke wishlist!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
       }
     } catch (e) {
-      debugPrint('Error wishlist: $e');
-    } finally {
-      if (mounted) setState(() => _isLoadingWishlist = false);
+      debugPrint('Error checking wishlist: $e');
     }
   }
 
-  Future<void> _openMaps() async {
-    final alamat = Uri.encodeComponent(
-      '${widget.destinasi['alamat_lengkap'] ?? widget.destinasi['nama']}, ${widget.destinasi['lokasi']}',
-    );
-    final url = Uri.parse(
-      'https://www.google.com/maps/search/?api=1&query=$alamat',
-    );
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Tidak bisa membuka Google Maps')),
-        );
-      }
+  Future<void> _toggleWishlist() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userEmail = prefs.getString('userEmail');
+
+    if (userEmail == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Silakan login terlebih dahulu')),
+      );
+      return;
     }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final userRes = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', userEmail)
+          .maybeSingle();
+
+      if (userRes == null) throw 'User tidak ditemukan';
+      final userId = userRes['id'];
+
+      if (_isWishlisted) {
+        await supabase
+            .from('wishlist')
+            .delete()
+            .eq('id_user', userId)
+            .eq('id_destinasi', widget.destinationData['id_destinasi']);
+      } else {
+        await supabase.from('wishlist').insert({
+          'id_user': userId,
+          'id_destinasi': widget.destinationData['id_destinasi'],
+        });
+      }
+
+      setState(() {
+        _isWishlisted = !_isWishlisted;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal memperbarui wishlist: $e')));
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _openMaps() async {
+    final namaDestinasi = widget.destinationData['nama'];
+    final mapsUrl = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(namaDestinasi)}',
+    );
+
+    if (await canLaunchUrl(mapsUrl)) {
+      await launchUrl(mapsUrl, mode: LaunchMode.externalApplication);
+    } else {
+      debugPrint('Could not launch $mapsUrl');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gagal membuka Google Maps')),
+      );
+    }
+  }
+
+  // --- FUNGSI BARU UNTUK PINDAH KE HALAMAN CHECKOUT ---
+  void _goToCheckout() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CheckoutScreen(destinasi: widget.destinationData),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final destinasi = widget.destinasi;
-    final kategori = destinasi['kategori']?['nama_kategori'] ?? '-';
+    const Color darkGreen = Color(0xFF1E3A34);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
-      body: Stack(
-        children: [
-          CustomScrollView(
-            slivers: [
-              // HERO IMAGE + APPBAR
-              SliverAppBar(
-                expandedHeight: 280,
-                pinned: true,
-                backgroundColor: _brandBlue,
-                leading: GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    margin: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.9),
-                      shape: BoxShape.circle,
+      backgroundColor: Colors.white,
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(30),
+                    bottomRight: Radius.circular(30),
+                  ),
+                  child: Image.network(
+                    widget.destinationData['foto'] ??
+                        'https://via.placeholder.com/400',
+                    width: double.infinity,
+                    height: 350,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      width: double.infinity,
+                      height: 350,
+                      color: Colors.grey.shade300,
+                      child: const Icon(
+                        Icons.image_not_supported,
+                        size: 50,
+                        color: Colors.grey,
+                      ),
                     ),
-                    child: const Icon(Icons.arrow_back, color: Colors.black),
                   ),
                 ),
-                actions: [
-                  GestureDetector(
-                    onTap: _isLoadingWishlist ? null : _toggleWishlist,
-                    child: Container(
-                      margin: const EdgeInsets.all(8),
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.9),
-                        shape: BoxShape.circle,
-                      ),
-                      child: _isLoadingWishlist
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Icon(
-                              _isWishlisted
-                                  ? Icons.favorite
-                                  : Icons.favorite_border,
-                              color: _isWishlisted ? Colors.red : Colors.grey,
-                              size: 22,
-                            ),
-                    ),
+                Positioned(
+                  top: 50,
+                  left: 20,
+                  child: _buildCircleButton(
+                    icon: Icons.arrow_back,
+                    onPressed: () => Navigator.pop(context),
                   ),
-                ],
-                flexibleSpace: FlexibleSpaceBar(
-                  background: Stack(
-                    fit: StackFit.expand,
+                ),
+                Positioned(
+                  top: 50,
+                  right: 20,
+                  child: _isLoading
+                      ? const CircularProgressIndicator()
+                      : _buildCircleButton(
+                          icon: _isWishlisted
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                          color: _isWishlisted ? Colors.red : null,
+                          onPressed: _toggleWishlist,
+                        ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Image.network(
-                        destinasi['foto'] ?? '',
-                        fit: BoxFit.cover,
-                        errorBuilder: (c, e, s) => Container(
-                          color: Colors.grey.shade300,
-                          child: const Icon(
-                            Icons.image,
-                            size: 60,
-                            color: Colors.grey,
+                      Expanded(
+                        child: Text(
+                          widget.destinationData['nama'] ?? '-',
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Poppins',
                           ),
                         ),
                       ),
-                      Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withOpacity(0.5),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // INFO UTAMA
-                    Container(
-                      color: Colors.white,
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      const SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Row(
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _brandBlue.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  kategori,
-                                  style: TextStyle(
-                                    color: _brandBlue,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            destinasi['nama'] ?? '-',
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.location_on,
-                                size: 16,
-                                color: _brandBlue,
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  destinasi['alamat_lengkap'] ??
-                                      destinasi['lokasi'] ??
-                                      '-',
-                                  style: const TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          Row(
-                            children: [
-                              _infoChip(
-                                Icons.star,
-                                '${_avgRating > 0 ? _avgRating : "Baru"}',
-                                Colors.amber,
-                              ),
-                              const SizedBox(width: 10),
-                              _infoChip(
-                                Icons.rate_review,
-                                '${_ulasanList.length} ulasan',
-                                Colors.blue,
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // HARGA TIKET
-                    Container(
-                      color: Colors.white,
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Harga Tiket',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _hargaCard(
-                                  'Weekday',
-                                  destinasi['weekday'] ?? '-',
-                                  destinasi['harga_tiket_weekday'] ?? 0,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _hargaCard(
-                                  'Weekend',
-                                  destinasi['weekend'] ?? '-',
-                                  destinasi['harga_tiket_weekend'] ?? 0,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // DESKRIPSI
-                    Container(
-                      color: Colors.white,
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Deskripsi',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            destinasi['deskripsi'] ?? '-',
-                            style: const TextStyle(
-                              color: Colors.grey,
-                              fontSize: 14,
-                              height: 1.6,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // LOKASI / BUKA MAPS
-                    Container(
-                      color: Colors.white,
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Lokasi',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          GestureDetector(
-                            onTap: _openMaps,
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF5F7FA),
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: Colors.grey.shade200),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: _brandBlue.withOpacity(0.1),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Icon(
-                                      Icons.map_outlined,
-                                      color: _brandBlue,
-                                      size: 24,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 14),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          destinasi['nama'] ?? '-',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          destinasi['alamat_lengkap'] ?? '-',
-                                          style: const TextStyle(
-                                            color: Colors.grey,
-                                            fontSize: 12,
-                                          ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Icon(Icons.chevron_right, color: _brandBlue),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Center(
-                            child: Text(
-                              'Tap untuk buka di Google Maps',
-                              style: TextStyle(
-                                color: Colors.grey.shade400,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // ULASAN
-                    Container(
-                      color: Colors.white,
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Ulasan',
-                                style: TextStyle(
-                                  fontSize: 16,
+                              Text(
+                                _averageRating.toStringAsFixed(1),
+                                style: const TextStyle(
+                                  fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              if (_ulasanList.isNotEmpty)
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.star,
-                                      color: Colors.amber,
-                                      size: 16,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '$_avgRating / 5.0',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                              const Icon(
+                                Icons.star,
+                                color: Colors.amber,
+                                size: 24,
+                              ),
                             ],
                           ),
-                          const SizedBox(height: 12),
-                          if (_isLoading)
-                            const Center(child: CircularProgressIndicator())
-                          else if (_ulasanList.isEmpty)
-                            Center(
-                              child: Column(
-                                children: [
-                                  const SizedBox(height: 10),
-                                  Icon(
-                                    Icons.rate_review_outlined,
-                                    size: 40,
-                                    color: Colors.grey.shade300,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Belum ada ulasan',
-                                    style: TextStyle(
-                                      color: Colors.grey.shade400,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                ],
-                              ),
-                            )
-                          else
-                            ...List.generate(
-                              _ulasanList.length > 3 ? 3 : _ulasanList.length,
-                              (index) {
-                                return _buildUlasanCard(_ulasanList[index]);
-                              },
+                          Text(
+                            '(${widget.reviews.length} reviews)',
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontSize: 12,
                             ),
-                          if (_ulasanList.length > 3)
-                            Center(
-                              child: TextButton(
-                                onPressed: () {},
-                                child: Text(
-                                  'Lihat semua ${_ulasanList.length} ulasan',
-                                  style: TextStyle(color: _brandBlue),
-                                ),
-                              ),
-                            ),
+                          ),
                         ],
-                      ),
-                    ),
-
-                    // Padding bawah untuk tombol
-                    const SizedBox(height: 90),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          // TOMBOL PESAN SEKARANG (FIXED BOTTOM)
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 10,
-                    offset: const Offset(0, -4),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Mulai dari',
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
-                      ),
-                      Text(
-                        _formatHarga(destinasi['harga_tiket_weekday'] ?? 0),
-                        style: TextStyle(
-                          color: _brandBlue,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Fitur pemesanan segera hadir!'),
+                  const SizedBox(height: 30),
+                  const Text(
+                    'Lokasi Google Maps',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'Poppins',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  GestureDetector(
+                    onTap: _openMaps,
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 5),
                           ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _brandBlue,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
+                        ],
                       ),
-                      child: const Text(
-                        'Pesan Sekarang',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(15),
+                            child: Image.asset(
+                              'assets/images/map_snapshot.png',
+                              width: double.infinity,
+                              height: 150,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 5),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.location_on,
+                                  color: darkGreen,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    widget.destinationData['lokasi'] ?? '-',
+                                    style: const TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 14,
+                                      fontFamily: 'Poppins',
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
+                  const SizedBox(height: 30),
+                  const Text(
+                    'Description',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: darkGreen,
+                      fontFamily: 'Poppins',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    widget.destinationData['deskripsi'] ?? '-',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey,
+                      height: 1.5,
+                      fontFamily: 'Poppins',
+                    ),
+                  ),
+
+                  const SizedBox(height: 30),
+                  const Text(
+                    'Ulasan Pengunjung',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'Poppins',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (widget.reviews.isEmpty)
+                    const Text('Belum ada ulasan.')
+                  else
+                    ...widget.reviews
+                        .take(2)
+                        .map((review) => _buildReviewItem(review, darkGreen))
+                        .toList(),
+                  // Spacer agar konten tidak tertutup oleh bottom sheet
+                  const SizedBox(height: 100),
                 ],
               ),
             ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(30),
+            topRight: Radius.circular(30),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _infoChip(IconData icon, String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 10,
+              offset: Offset(0, -5),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _hargaCard(String tipe, String jam, int harga) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF5F7FA),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            tipe,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              const Icon(Icons.access_time, size: 12, color: Colors.grey),
-              const SizedBox(width: 4),
-              Text(
-                jam,
-                style: const TextStyle(color: Colors.grey, fontSize: 11),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _formatHarga(harga),
-            style: TextStyle(
-              color: _brandBlue,
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildUlasanCard(Map<String, dynamic> ulasan) {
-    final rating = (ulasan['rating'] as num).toInt();
-    final nama = ulasan['users']?['name'] ?? 'Pengguna';
-    final tanggal = ulasan['tanggal_ulasan'] != null
-        ? DateFormat(
-            'd MMM yyyy',
-            'id',
-          ).format(DateTime.parse(ulasan['tanggal_ulasan']))
-        : '-';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF5F7FA),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: _brandBlue.withOpacity(0.2),
-                child: Text(
-                  nama.isNotEmpty ? nama[0].toUpperCase() : 'U',
-                  style: TextStyle(
-                    color: _brandBlue,
-                    fontWeight: FontWeight.bold,
-                  ),
+          ],
+        ),
+        child: SafeArea(
+          child: SizedBox(
+            width: double.infinity,
+            height: 60,
+            child: ElevatedButton(
+              // Panggil fungsi _goToCheckout saat tombol ditekan
+              onPressed: _goToCheckout,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: darkGreen,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              child: const Text(
+                'Pesan Tiket Sekarang',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Poppins',
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCircleButton({
+    required IconData icon,
+    Color? color,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.3),
+        shape: BoxShape.circle,
+      ),
+      child: IconButton(
+        icon: Icon(icon, color: color ?? Colors.white, size: 28),
+        onPressed: onPressed,
+      ),
+    );
+  }
+
+  Widget _buildReviewItem(Review review, Color themeColor) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 15),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const CircleAvatar(
+            backgroundImage: AssetImage('assets/images/user_placeholder.png'),
+            radius: 20,
+          ),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Text(
-                      nama,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
+                    Expanded(
+                      child: Text(
+                        review.userName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    Text(
-                      tanggal,
-                      style: const TextStyle(color: Colors.grey, fontSize: 11),
+                    Row(
+                      children: [
+                        Text(
+                          review.rating.toStringAsFixed(1),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        const Icon(Icons.star, color: Colors.amber, size: 16),
+                      ],
                     ),
                   ],
                 ),
-              ),
-              Row(
-                children: List.generate(
-                  5,
-                  (i) => Icon(
-                    i < rating ? Icons.star : Icons.star_border,
-                    size: 14,
-                    color: Colors.amber,
+                const SizedBox(height: 5),
+                Text(
+                  review.reviewText,
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 13,
+                    height: 1.4,
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            ulasan['komentar'] ?? '-',
-            style: const TextStyle(
-              color: Colors.grey,
-              fontSize: 13,
-              height: 1.5,
+              ],
             ),
           ),
         ],
       ),
     );
-  }
-
-  String _formatHarga(int harga) {
-    if (harga == 0) return 'Gratis';
-    final formatter = NumberFormat.currency(
-      locale: 'id',
-      symbol: 'Rp ',
-      decimalDigits: 0,
-    );
-    return formatter.format(harga);
   }
 }

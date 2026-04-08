@@ -112,7 +112,7 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
               ),
               decoration: InputDecoration(
                 hintText: "000000",
-                counterText: "", // Hilangkan penghitung karakter di bawah
+                counterText: "",
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),

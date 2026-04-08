@@ -4,8 +4,13 @@ import 'detail_destinasi_screen.dart';
 
 class LokasiScreen extends StatefulWidget {
   final String namaKota;
+  final String fotoKota;
 
-  const LokasiScreen({super.key, required this.namaKota});
+  const LokasiScreen({
+    super.key,
+    required this.namaKota,
+    required this.fotoKota,
+  });
 
   @override
   State<LokasiScreen> createState() => _LokasiScreenState();
@@ -121,47 +126,37 @@ class _LokasiScreenState extends State<LokasiScreen> {
               onPressed: () => Navigator.pop(context),
             ),
             flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                'Wisata ${widget.namaKota}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Container(color: _brandBlue),
+                  Image.network(
+                    widget.fotoKota,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) =>
+                        Container(color: _brandBlue),
+                  ),
                   Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [_brandBlue.withOpacity(0.6), _brandBlue],
+                        colors: [
+                          Colors.black.withOpacity(0.2),
+                          Colors.black.withOpacity(0.7),
+                        ],
                       ),
                     ),
                   ),
-                  Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const SizedBox(height: 20),
-                        const Icon(
-                          Icons.location_city,
-                          color: Colors.white,
-                          size: 48,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          widget.namaKota,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
+                  Positioned(
+                    bottom: 20, // Mengatur jarak dari bawah
+                    left: 20, // Mengatur jarak dari kiri
+                    child: Text(
+                      widget.namaKota,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ],
@@ -200,7 +195,6 @@ class _LokasiScreenState extends State<LokasiScreen> {
                     ),
                   ),
 
-                  // FILTER KATEGORI
                   Container(
                     color: Colors.white,
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
@@ -324,7 +318,8 @@ class _LokasiScreenState extends State<LokasiScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => DetailDestinasiScreen(destinasi: item),
+            builder: (context) =>
+                DetailDestinasiScreen(destinationData: item, reviews: const []),
           ),
         );
       },

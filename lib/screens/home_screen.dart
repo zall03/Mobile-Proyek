@@ -5,6 +5,7 @@ import 'lokasi_screen.dart';
 import 'detail_destinasi_screen.dart';
 import 'wishlist_screen.dart';
 import 'profile_screen.dart';
+import 'history_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -184,14 +185,15 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           IconButton(
                             onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Pengaturan coming soon!'),
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const HistoryScreen(),
                                 ),
                               );
                             },
                             icon: Icon(
-                              Icons.settings_outlined,
+                              Icons.history,
                               color: _brandBlue,
                               size: 28,
                             ),

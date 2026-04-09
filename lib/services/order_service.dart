@@ -2,9 +2,44 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 
 class OrderService {
-  final supabase = Supabase.instance.client;
+  Future<bool> hasUserReviewed(String userId, int destinasiId) async {
+    try {
+      final response = await supabase
+          .from('ulasan')
+          .select('id_ulasan')
+          .eq('user_uuid', userId)
+          .eq('id_destinasi', destinasiId)
+          .maybeSingle();
+      return response != null;
+    } catch (e) {
+      debugPrint('Error check review: $e');
+      return false;
+    }
+  }
 
-  /// Simpan pesanan setelah pembayaran sukses
+  final supabase = Supabase.instance.client;
+  Future<bool> saveReview({
+    required String userId, // UUID dari auth.users
+    required int destinasiId,
+    required double rating,
+    required String komentar,
+  }) async {
+    try {
+      await supabase.from('ulasan').insert({
+        'rating': rating,
+        'komentar': komentar,
+        'tanggal_ulasan': DateTime.now().toIso8601String().split('T')[0],
+        'id_user': 0,
+        'user_uuid': userId,
+        'id_destinasi': destinasiId,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('Error save review: $e');
+      return false;
+    }
+  }
+
   Future<Map<String, dynamic>> saveOrder({
     required String orderId,
     required int jumlahTiket,
@@ -15,14 +50,13 @@ class OrderService {
     required String metodeBayar,
   }) async {
     try {
-      // 1. Simpan ke tabel pemesanan
       final pemesananData = {
         'tanggal_pemesanan': DateTime.now().toIso8601String().split('T')[0],
         'jumlah_tiket': jumlahTiket,
         'total_harga': totalHarga,
         'status': 'paid',
-        'id_user': null, // biarkan null, pakai user_uuid
-        'user_uuid': userId, // simpan UUID di kolom baru
+        'id_user': null,
+        'user_uuid': userId,
         'id_destinasi': destinasiId,
         'order_id': orderId,
         'tanggal_berangkat': tanggalBerangkat.toIso8601String().split('T')[0],
@@ -37,8 +71,6 @@ class OrderService {
           .single();
 
       final idPemesanan = pemesananResponse['id_pemesanan'];
-
-      // 2. Simpan ke tabel pembayaran
       final pembayaranData = {
         'metode_bayar': metodeBayar,
         'tanggal_bayar': DateTime.now().toIso8601String().split('T')[0],
@@ -61,27 +93,22 @@ class OrderService {
     }
   }
 
-  /// Ambil riwayat pesanan user berdasarkan UUID
-  Future<List<Map<String, dynamic>>> getUserOrders(String userId) async {
+  Future<List<Map<String, dynamic>>> getUserOrdersWithDetails(
+    String userId,
+  ) async {
     try {
       final response = await supabase
           .from('pemesanan')
-          .select('''
-            *,
-            destinasi:destinasi(*),
-            pembayaran:pembayaran(*)
-          ''')
+          .select('*, destinasi:destinasi(*)')
           .eq('user_uuid', userId)
-          .order('created_at', ascending: false);
-
+          .order('tanggal_berangkat', ascending: false);
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
-      debugPrint('Error fetching orders: $e');
+      debugPrint('Error fetching orders with details: $e');
       return [];
     }
   }
 
-  /// Update status pesanan berdasarkan order_id
   Future<bool> updateOrderStatus(String orderId, String status) async {
     try {
       await supabase

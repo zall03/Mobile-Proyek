@@ -2,7 +2,7 @@ class Review {
   final int idUlasan;
   final double rating;
   final String reviewText;
-  final String userName; 
+  final String userName;
   final String tanggalUlasan;
 
   Review({
@@ -21,9 +21,9 @@ class Review {
 
     return Review(
       idUlasan: json['id_ulasan'] ?? 0,
-      rating: (json['rating'] as num?)?.toDouble() ?? 0.0, 
-      reviewText: json['komentar'] ?? 'Tidak ada komentar.', 
-      tanggalUlasan: json['tanggal_ulasan'] ?? '', 
+      rating: (json['rating'] as num?)?.toDouble() ?? 0.0,
+      reviewText: json['komentar'] ?? 'Tidak ada komentar.',
+      tanggalUlasan: json['tanggal_ulasan'] ?? '',
       userName: name,
     );
   }

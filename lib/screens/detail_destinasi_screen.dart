@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../model/review.dart';
+import '../models/review.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import 'checkout_screen.dart';
 
 class DetailDestinasiScreen extends StatefulWidget {
   final Map<String, dynamic> destinationData;
-  final List<Review> reviews;
+  final List<Review>
+  reviews; // Tidak digunakan lagi, tapi biarkan untuk kompatibilitas
 
   const DetailDestinasiScreen({
     Key? key,
     required this.destinationData,
-    required this.reviews,
+    this.reviews = const [],
   }) : super(key: key);
 
   @override
@@ -25,6 +25,7 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
   bool _isWishlisted = false;
   bool _isLoading = false;
   double _averageRating = 0.0;
+  List<Review> _reviews = []; // Data ulasan dari database
 
   final currencyFormatter = NumberFormat.currency(
     locale: 'id_ID',
@@ -36,52 +37,83 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
   void initState() {
     super.initState();
     _checkWishlist();
-    _calculateAverageRating();
+    _fetchReviews();
+  }
+
+  // Ambil ulasan dari tabel 'ulasan' dan hitung rating rata-rata
+  Future<void> _fetchReviews() async {
+    try {
+      // Ambil semua ulasan untuk destinasi ini
+      final reviewsData = await supabase
+          .from('ulasan')
+          .select('*')
+          .eq('id_destinasi', widget.destinationData['id_destinasi']);
+
+      print('Reviews data: $reviewsData'); // Cek di console
+
+      final List<Review> fetchedReviews = [];
+      for (var item in reviewsData) {
+        String userName = 'Pengguna';
+        // Ambil nama user dari tabel users berdasarkan user_uuid
+        if (item['user_uuid'] != null) {
+          final userData = await supabase
+              .from('users')
+              .select('name')
+              .eq('id', item['user_uuid'])
+              .maybeSingle();
+          if (userData != null && userData['name'] != null) {
+            userName = userData['name'];
+          }
+        }
+        fetchedReviews.add(
+          Review(
+            idUlasan: item['id_ulasan'] ?? 0,
+            rating: (item['rating'] as num).toDouble(),
+            reviewText: item['komentar'] ?? '',
+            userName: userName,
+            tanggalUlasan: item['tanggal_ulasan'] ?? '',
+          ),
+        );
+      }
+      setState(() {
+        _reviews = fetchedReviews;
+        _calculateAverageRating();
+      });
+    } catch (e) {
+      debugPrint('Error fetching reviews: $e');
+      setState(() {
+        _reviews = [];
+        _calculateAverageRating();
+      });
+    }
   }
 
   void _calculateAverageRating() {
-    if (widget.reviews.isEmpty) {
-      setState(() {
-        _averageRating = 0.0;
-      });
-      return;
+    if (_reviews.isEmpty) {
+      _averageRating = 0.0;
+    } else {
+      double total = 0;
+      for (var review in _reviews) {
+        total += review.rating;
+      }
+      _averageRating = total / _reviews.length;
     }
-
-    double total = 0;
-    for (var review in widget.reviews) {
-      total += review.rating;
-    }
-    setState(() {
-      _averageRating = total / widget.reviews.length;
-    });
   }
 
   Future<void> _checkWishlist() async {
-    final prefs = await SharedPreferences.getInstance();
-    final userEmail = prefs.getString('userEmail');
-    if (userEmail == null) return;
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
 
     try {
-      final userRes = await supabase
-          .from('users')
-          .select('id')
-          .eq('email', userEmail)
-          .maybeSingle();
-
-      if (userRes == null) return;
-      final userId = userRes['id'];
-
       final response = await supabase
           .from('wishlist')
           .select()
-          .eq('id_user', userId)
+          .eq('user_uuid', user.id)
           .eq('id_destinasi', widget.destinationData['id_destinasi'])
           .maybeSingle();
 
-      if (response != null) {
-        setState(() {
-          _isWishlisted = true;
-        });
+      if (response != null && mounted) {
+        setState(() => _isWishlisted = true);
       }
     } catch (e) {
       debugPrint('Error checking wishlist: $e');
@@ -89,54 +121,36 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
   }
 
   Future<void> _toggleWishlist() async {
-    final prefs = await SharedPreferences.getInstance();
-    final userEmail = prefs.getString('userEmail');
-
-    if (userEmail == null) {
+    final user = supabase.auth.currentUser;
+    if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Silakan login terlebih dahulu')),
       );
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
-      final userRes = await supabase
-          .from('users')
-          .select('id')
-          .eq('email', userEmail)
-          .maybeSingle();
-
-      if (userRes == null) throw 'User tidak ditemukan';
-      final userId = userRes['id'];
-
       if (_isWishlisted) {
         await supabase
             .from('wishlist')
             .delete()
-            .eq('id_user', userId)
+            .eq('user_uuid', user.id)
             .eq('id_destinasi', widget.destinationData['id_destinasi']);
       } else {
         await supabase.from('wishlist').insert({
-          'id_user': userId,
+          'user_uuid': user.id,
           'id_destinasi': widget.destinationData['id_destinasi'],
         });
       }
-
-      setState(() {
-        _isWishlisted = !_isWishlisted;
-      });
+      setState(() => _isWishlisted = !_isWishlisted);
     } catch (e) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Gagal memperbarui wishlist: $e')));
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -156,7 +170,6 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
     }
   }
 
-  // --- FUNGSI BARU UNTUK PINDAH KE HALAMAN CHECKOUT ---
   void _goToCheckout() {
     Navigator.push(
       context,
@@ -264,7 +277,7 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
                             ],
                           ),
                           Text(
-                            '(${widget.reviews.length} reviews)',
+                            '(${_reviews.length} reviews)',
                             style: const TextStyle(
                               color: Colors.grey,
                               fontSize: 12,
@@ -360,7 +373,6 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
                       fontFamily: 'Poppins',
                     ),
                   ),
-
                   const SizedBox(height: 30),
                   const Text(
                     'Ulasan Pengunjung',
@@ -371,14 +383,13 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  if (widget.reviews.isEmpty)
+                  if (_reviews.isEmpty)
                     const Text('Belum ada ulasan.')
                   else
-                    ...widget.reviews
+                    ..._reviews
                         .take(2)
                         .map((review) => _buildReviewItem(review, darkGreen))
                         .toList(),
-                  // Spacer agar konten tidak tertutup oleh bottom sheet
                   const SizedBox(height: 100),
                 ],
               ),
@@ -407,7 +418,6 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
             width: double.infinity,
             height: 60,
             child: ElevatedButton(
-              // Panggil fungsi _goToCheckout saat tombol ditekan
               onPressed: _goToCheckout,
               style: ElevatedButton.styleFrom(
                 backgroundColor: darkGreen,

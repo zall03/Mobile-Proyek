@@ -1,7 +1,11 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
+import 'notifikasi_service.dart';
 
 class OrderService {
+  final supabase = Supabase.instance.client;
+
+  // ========== CEK REVIEW ==========
   Future<bool> hasUserReviewed(String userId, int destinasiId) async {
     try {
       final response = await supabase
@@ -17,9 +21,9 @@ class OrderService {
     }
   }
 
-  final supabase = Supabase.instance.client;
+  // ========== SAVE REVIEW ==========
   Future<bool> saveReview({
-    required String userId, // UUID dari auth.users
+    required String userId,
     required int destinasiId,
     required double rating,
     required String komentar,
@@ -40,6 +44,7 @@ class OrderService {
     }
   }
 
+  // ========== SAVE ORDER & NOTIFIKASI ==========
   Future<Map<String, dynamic>> saveOrder({
     required String orderId,
     required int jumlahTiket,
@@ -71,6 +76,7 @@ class OrderService {
           .single();
 
       final idPemesanan = pemesananResponse['id_pemesanan'];
+
       final pembayaranData = {
         'metode_bayar': metodeBayar,
         'tanggal_bayar': DateTime.now().toIso8601String().split('T')[0],
@@ -81,6 +87,24 @@ class OrderService {
       };
 
       await supabase.from('pembayaran').insert(pembayaranData);
+
+      // 🔔 KIRIM NOTIFIKASI KE USER
+      final namaDestinasi = await _getDestinasiName(destinasiId);
+      final notifService = NotifikasiService();
+      await notifService.sendNotification(
+        userId: userId,
+        title: 'Pembayaran Berhasil 🎉',
+        message:
+            'Pesanan tiket $namaDestinasi ($jumlahTiket tiket) senilai Rp$totalHarga telah berhasil.',
+        type: 'order',
+        data: {
+          'order_id': orderId,
+          'destinasi_id': destinasiId,
+          'jumlah_tiket': jumlahTiket,
+          'total_harga': totalHarga,
+          'tanggal_berangkat': tanggalBerangkat.toIso8601String(),
+        },
+      );
 
       return {
         'success': true,
@@ -93,6 +117,21 @@ class OrderService {
     }
   }
 
+  // Helper ambil nama destinasi (opsional untuk notifikasi)
+  Future<String> _getDestinasiName(int destinasiId) async {
+    try {
+      final response = await supabase
+          .from('destinasi')
+          .select('nama')
+          .eq('id_destinasi', destinasiId)
+          .maybeSingle();
+      return response?['nama'] ?? 'Destinasi';
+    } catch (e) {
+      return 'Destinasi';
+    }
+  }
+
+  // ========== GET USER ORDERS ==========
   Future<List<Map<String, dynamic>>> getUserOrdersWithDetails(
     String userId,
   ) async {
@@ -109,6 +148,7 @@ class OrderService {
     }
   }
 
+  // ========== UPDATE ORDER STATUS ==========
   Future<bool> updateOrderStatus(String orderId, String status) async {
     try {
       await supabase

@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 
 class MidtransService {
-  static const String serverKey = '';
+  static const String serverKey = 'Mid-server-Cucxsus7Yi4uIcCcYoji0DXN';
 
   static Future<String?> createTransaction({
     required String orderId,

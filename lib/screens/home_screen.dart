@@ -6,6 +6,8 @@ import 'detail_destinasi_screen.dart';
 import 'wishlist_screen.dart';
 import 'profile_screen.dart';
 import 'history_screen.dart';
+import 'notifikasi_screen.dart';
+import '../services/notifikasi_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,6 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _popularDestinasiList = [];
   List<Map<String, dynamic>> _rekomendasiList = [];
   bool _isLoading = true;
+  int _unreadNotifCount = 0;
 
   int _selectedIndex = 0;
 
@@ -53,6 +56,12 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _loadUserName();
     _loadData();
+    _loadUnreadCount();
+  }
+
+  Future<void> _loadUnreadCount() async {
+    final count = await NotifikasiService().getUnreadCount();
+    if (mounted) setState(() => _unreadNotifCount = count);
   }
 
   Future<void> _loadUserName() async {
@@ -80,7 +89,65 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     await Future.wait([_loadPopular(), _loadRekomendasi()]);
+    // Setelah kedua list terisi, hitung rating rata-rata untuk setiap destinasi
+    await _attachRatings();
     setState(() => _isLoading = false);
+  }
+
+  // Fungsi untuk menghitung rating rata-rata dari tabel ulasan
+  Future<void> _attachRatings() async {
+    // Kumpulkan semua id destinasi dari popular dan rekomendasi
+    Set<int> destinasiIds = {};
+    for (var item in _popularDestinasiList) {
+      destinasiIds.add(item['id_destinasi']);
+    }
+    for (var item in _rekomendasiList) {
+      final destinasi = item['destinasi'];
+      if (destinasi != null) {
+        destinasiIds.add(destinasi['id_destinasi']);
+      }
+    }
+
+    if (destinasiIds.isEmpty) return;
+
+    // Ambil semua rating untuk destinasi tersebut
+    final response = await _supabase
+        .from('ulasan')
+        .select('id_destinasi, rating')
+        .inFilter('id_destinasi', destinasiIds.toList());
+
+    // Hitung rata-rata per id_destinasi
+    Map<int, double> avgRatings = {};
+    Map<int, int> countRatings = {};
+
+    for (var ulasan in response) {
+      int id = ulasan['id_destinasi'];
+      double rating = (ulasan['rating'] as num).toDouble();
+      avgRatings[id] = (avgRatings[id] ?? 0) + rating;
+      countRatings[id] = (countRatings[id] ?? 0) + 1;
+    }
+
+    // Hitung rata-rata
+    for (var id in avgRatings.keys) {
+      avgRatings[id] = avgRatings[id]! / countRatings[id]!;
+    }
+
+    // Tempelkan ke popular destinasi
+    for (var i = 0; i < _popularDestinasiList.length; i++) {
+      int id = _popularDestinasiList[i]['id_destinasi'];
+      double avg = avgRatings[id] ?? 0.0;
+      _popularDestinasiList[i]['avg_rating'] = avg;
+    }
+
+    // Tempelkan ke rekomendasi (di dalam objek destinasi)
+    for (var i = 0; i < _rekomendasiList.length; i++) {
+      var destinasi = _rekomendasiList[i]['destinasi'];
+      if (destinasi != null) {
+        int id = destinasi['id_destinasi'];
+        double avg = avgRatings[id] ?? 0.0;
+        _rekomendasiList[i]['destinasi']['avg_rating'] = avg;
+      }
+    }
   }
 
   Future<void> _loadPopular() async {
@@ -90,6 +157,7 @@ class _HomeScreenState extends State<HomeScreen> {
         () => _popularDestinasiList = List<Map<String, dynamic>>.from(res),
       );
     } catch (e) {
+      // Fallback: ambil 5 destinasi pertama
       final res = await _supabase
           .from('destinasi')
           .select('*, kategori(nama_kategori)')
@@ -110,13 +178,12 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() => _rekomendasiList = List<Map<String, dynamic>>.from(res));
     } catch (e) {
       debugPrint('Error load rekomendasi: $e');
+      setState(() => _rekomendasiList = []);
     }
   }
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    setState(() => _selectedIndex = index);
   }
 
   Widget _buildBodyContent() {
@@ -126,7 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 1:
         return const WishlistScreen();
       case 2:
-        return const Center(child: Text('Halaman Notfikasi (Segera Hadir)'));
+        return NotifikasiScreen(onUnreadCountChanged: _loadUnreadCount);
       case 3:
         return const ProfileScreen();
       default:
@@ -175,7 +242,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                               ),
                               Text(
-                                'Halo, $_userName ',
+                                'Halo, $_userName',
                                 style: const TextStyle(
                                   fontSize: 14,
                                   color: Colors.grey,
@@ -184,14 +251,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             ],
                           ),
                           IconButton(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const HistoryScreen(),
-                                ),
-                              );
-                            },
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const HistoryScreen(),
+                              ),
+                            ),
                             icon: Icon(
                               Icons.history,
                               color: _brandBlue,
@@ -287,9 +352,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     delegate: SliverChildBuilderDelegate((context, index) {
                       final item = _rekomendasiList[index];
                       final destinasi = item['destinasi'];
+                      if (destinasi == null) return const SizedBox.shrink();
+                      final avgRating = (destinasi['avg_rating'] ?? 0.0)
+                          .toDouble();
                       final kategori =
-                          destinasi?['kategori']?['nama_kategori'] ?? '-';
-                      return _buildRekomendasiCard(destinasi, kategori);
+                          destinasi['kategori']?['nama_kategori'] ?? '-';
+                      return _buildRekomendasiCard(
+                        destinasi,
+                        kategori,
+                        avgRating,
+                      );
                     }, childCount: _rekomendasiList.length),
                   ),
                   if (_rekomendasiList.isEmpty)
@@ -318,13 +390,6 @@ class _HomeScreenState extends State<HomeScreen> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          TextButton(
-                            onPressed: () {},
-                            child: Text(
-                              'See all',
-                              style: TextStyle(color: _brandBlue),
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -336,9 +401,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         scrollDirection: Axis.horizontal,
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         itemCount: _kotaList.length,
-                        itemBuilder: (context, index) {
-                          return _buildKotaCard(_kotaList[index]);
-                        },
+                        itemBuilder: (context, index) =>
+                            _buildKotaCard(_kotaList[index]),
                       ),
                     ),
                   ),
@@ -360,17 +424,45 @@ class _HomeScreenState extends State<HomeScreen> {
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
         type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(
+        items: [
+          const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          const BottomNavigationBarItem(
             icon: Icon(Icons.favorite_border),
             label: 'Wishlist',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.notifications_none),
+            icon: Stack(
+              children: [
+                const Icon(Icons.notifications_none),
+                if (_unreadNotifCount > 0)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Text(
+                        '$_unreadNotifCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
             label: 'Notification',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
             label: 'Profile',
           ),
@@ -385,15 +477,13 @@ class _HomeScreenState extends State<HomeScreen> {
     String kategori,
   ) {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                DetailDestinasiScreen(destinationData: item, reviews: const []),
-          ),
-        );
-      },
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              DetailDestinasiScreen(destinationData: item, reviews: const []),
+        ),
+      ),
       child: Container(
         width: 180,
         margin: const EdgeInsets.only(right: 14),
@@ -422,7 +512,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     height: 120,
                     width: double.infinity,
                     fit: BoxFit.cover,
-                    errorBuilder: (c, e, s) => Container(
+                    errorBuilder: (_, __, ___) => Container(
                       height: 120,
                       color: Colors.grey[200],
                       child: const Icon(Icons.image, color: Colors.grey),
@@ -505,23 +595,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildRekomendasiCard(
-    Map<String, dynamic>? destinasi,
+    Map<String, dynamic> destinasi,
     String kategori,
+    double avgRating,
   ) {
     return GestureDetector(
-      onTap: () {
-        if (destinasi != null) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => DetailDestinasiScreen(
-                destinationData: destinasi,
-                reviews: const [],
-              ),
-            ),
-          );
-        }
-      },
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DetailDestinasiScreen(
+            destinationData: destinasi,
+            reviews: const [],
+          ),
+        ),
+      ),
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
         padding: const EdgeInsets.all(12),
@@ -541,11 +628,11 @@ class _HomeScreenState extends State<HomeScreen> {
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: Image.network(
-                destinasi?['foto'] ?? '',
+                destinasi['foto'] ?? '',
                 width: 75,
                 height: 75,
                 fit: BoxFit.cover,
-                errorBuilder: (c, e, s) => Container(
+                errorBuilder: (_, __, ___) => Container(
                   width: 75,
                   height: 75,
                   color: Colors.grey[200],
@@ -559,7 +646,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    destinasi?['nama'] ?? '-',
+                    destinasi['nama'] ?? '-',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
@@ -590,13 +677,21 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       Expanded(
                         child: Text(
-                          destinasi?['lokasi'] ?? '-',
+                          destinasi['lokasi'] ?? '-',
                           style: const TextStyle(
                             color: Colors.grey,
                             fontSize: 12,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const Icon(Icons.star, size: 12, color: Colors.amber),
+                      Text(
+                        avgRating.toStringAsFixed(1),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
@@ -612,15 +707,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildKotaCard(Map<String, String> kota) {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                LokasiScreen(namaKota: kota['nama']!, fotoKota: kota['foto']!),
-          ),
-        );
-      },
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              LokasiScreen(namaKota: kota['nama']!, fotoKota: kota['foto']!),
+        ),
+      ),
       child: Container(
         width: 110,
         margin: const EdgeInsets.only(right: 12),
@@ -642,7 +735,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Image.network(
                 kota['foto']!,
                 fit: BoxFit.cover,
-                errorBuilder: (c, e, s) => Container(color: _brandBlue),
+                errorBuilder: (_, __, ___) => Container(color: _brandBlue),
               ),
               Container(
                 decoration: BoxDecoration(

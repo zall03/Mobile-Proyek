@@ -43,7 +43,7 @@ jobs:
           -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
           -d text="❌ Build gagal di workflow GitHub Actions"
           
-      name: 📤 Send APK to Telegram
+      - name: 📤 Send APK to Telegram
         if: success()
         run: |
           curl -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument \

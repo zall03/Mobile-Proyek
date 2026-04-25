@@ -25,7 +25,18 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
+flavorDimensions += "env"
 
+    productFlavors {
+        create("dev") {
+            dimension = "env"
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+        }
+        create("prod") {
+            dimension = "env"
+        }
+    }
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")

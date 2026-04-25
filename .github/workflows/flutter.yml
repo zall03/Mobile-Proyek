@@ -8,10 +8,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-      strategy:
-        matrix:
-          flutter: ['3.16.0', '3.19.0']
-          
+    strategy:
+      matrix:
+        flutter: ['3.16.0', '3.19.0']
+        
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4

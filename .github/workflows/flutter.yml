@@ -7,7 +7,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-        
+
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
@@ -16,19 +16,15 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.41.2' 
-          
-      - name: 💾 Cache Flutter Dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.pub-cache
-          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
-          
+
       - name: 📦 Install Dependencies
         run: flutter pub get
 
+      # 1. Perintah Build ditambahkan --split-per-abi
       - name: 🏗️ Build APK
         run: flutter build apk --release --split-per-abi
 
+      # 2. Path Artifact diubah ke file yang sudah di-split
       - name: 📤 Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -49,6 +45,7 @@ jobs:
           -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
           -d text="❌ Build gagal di workflow GitHub Actions"
           
+      # 3. Path Document Telegram diubah ke file yang sudah di-split
       - name: 📤 Send APK to Telegram
         if: success()
         run: |

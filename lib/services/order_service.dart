@@ -4,8 +4,7 @@ import 'notifikasi_service.dart';
 
 class OrderService {
   final supabase = Supabase.instance.client;
-
-  // ========== CEK REVIEW ==========
+  
   Future<bool> hasUserReviewed(String userId, int destinasiId) async {
     try {
       final response = await supabase
@@ -33,7 +32,7 @@ class OrderService {
         'rating': rating,
         'komentar': komentar,
         'tanggal_ulasan': DateTime.now().toIso8601String().split('T')[0],
-        'id_user': 0,
+        'user_id': userId,
         'user_uuid': userId,
         'id_destinasi': destinasiId,
       });
@@ -60,7 +59,7 @@ class OrderService {
         'jumlah_tiket': jumlahTiket,
         'total_harga': totalHarga,
         'status': 'paid',
-        'id_user': null,
+        'user_id': userId,
         'user_uuid': userId,
         'id_destinasi': destinasiId,
         'order_id': orderId,
@@ -88,7 +87,6 @@ class OrderService {
 
       await supabase.from('pembayaran').insert(pembayaranData);
 
-      // 🔔 KIRIM NOTIFIKASI KE USER
       final namaDestinasi = await _getDestinasiName(destinasiId);
       final notifService = NotifikasiService();
       await notifService.sendNotification(
@@ -117,7 +115,7 @@ class OrderService {
     }
   }
 
-  // Helper ambil nama destinasi (opsional untuk notifikasi)
+  // Helper ambil nama destinasi
   Future<String> _getDestinasiName(int destinasiId) async {
     try {
       final response = await supabase
@@ -139,7 +137,7 @@ class OrderService {
       final response = await supabase
           .from('pemesanan')
           .select('*, destinasi:destinasi(*)')
-          .eq('user_uuid', userId)
+          .eq('user_id', userId)
           .order('tanggal_berangkat', ascending: false);
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {

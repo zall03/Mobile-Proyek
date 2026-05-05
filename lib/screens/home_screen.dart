@@ -89,7 +89,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     await Future.wait([_loadPopular(), _loadRekomendasi()]);
-    // Setelah kedua list terisi, hitung rating rata-rata untuk setiap destinasi
     await _attachRatings();
     setState(() => _isLoading = false);
   }

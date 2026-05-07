@@ -7,8 +7,7 @@ import 'checkout_screen.dart';
 
 class DetailDestinasiScreen extends StatefulWidget {
   final Map<String, dynamic> destinationData;
-  final List<Review>
-  reviews; // Tidak digunakan lagi, tapi biarkan untuk kompatibilitas
+  final List<Review> reviews;
 
   const DetailDestinasiScreen({
     Key? key,
@@ -22,10 +21,19 @@ class DetailDestinasiScreen extends StatefulWidget {
 
 class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
   final SupabaseClient supabase = Supabase.instance.client;
+
+  // Wishlist
   bool _isWishlisted = false;
   bool _isLoading = false;
+
+  // Reviews
   double _averageRating = 0.0;
-  List<Review> _reviews = []; // Data ulasan dari database
+  List<Review> _reviews = [];
+
+  // Carousel
+  int _currentImageIndex = 0;
+  final PageController _pageController = PageController();
+  List<String> _allPhotos = [];
 
   final currencyFormatter = NumberFormat.currency(
     locale: 'id_ID',
@@ -38,23 +46,68 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
     super.initState();
     _checkWishlist();
     _fetchReviews();
+    _fetchAllPhotos();
   }
 
-  // Ambil ulasan dari tabel 'ulasan' dan hitung rating rata-rata
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  // ─── Fetch semua foto ─────────────────────────────────────────────────────
+
+  Future<void> _fetchAllPhotos() async {
+    final coverPhoto = widget.destinationData['foto'] as String?;
+
+    try {
+      final response = await supabase
+          .from('destinasi_fotos')
+          .select('foto')
+          .eq('id_destinasi', widget.destinationData['id_destinasi']);
+
+      final List<String> photos = [];
+
+      if (coverPhoto != null && coverPhoto.trim().isNotEmpty) {
+        photos.add(coverPhoto.trim());
+      }
+
+      for (var item in response) {
+        final url = (item['foto'] as String?)?.trim();
+        if (url != null && url.isNotEmpty) {
+          photos.add(url);
+        }
+      }
+
+      setState(() {
+        _allPhotos = photos.isEmpty
+            ? ['https://via.placeholder.com/400']
+            : photos;
+      });
+    } catch (e) {
+      debugPrint('Error fetching photos: $e');
+      setState(() {
+        _allPhotos = coverPhoto != null && coverPhoto.trim().isNotEmpty
+            ? [coverPhoto.trim()]
+            : ['https://via.placeholder.com/400'];
+      });
+    }
+  }
+
+  // ─── Fetch ulasan ─────────────────────────────────────────────────────────
+
   Future<void> _fetchReviews() async {
     try {
-      // Ambil semua ulasan untuk destinasi ini
       final reviewsData = await supabase
           .from('ulasan')
           .select('*')
           .eq('id_destinasi', widget.destinationData['id_destinasi']);
 
-      print('Reviews data: $reviewsData'); // Cek di console
-
       final List<Review> fetchedReviews = [];
+
       for (var item in reviewsData) {
         String userName = 'Pengguna';
-        // Ambil nama user dari tabel users berdasarkan user_uuid
+
         if (item['user_uuid'] != null) {
           final userData = await supabase
               .from('users')
@@ -65,6 +118,7 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
             userName = userData['name'];
           }
         }
+
         fetchedReviews.add(
           Review(
             idUlasan: item['id_ulasan'] ?? 0,
@@ -75,6 +129,7 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
           ),
         );
       }
+
       setState(() {
         _reviews = fetchedReviews;
         _calculateAverageRating();
@@ -99,6 +154,8 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
       _averageRating = total / _reviews.length;
     }
   }
+
+  // ─── Wishlist ─────────────────────────────────────────────────────────────
 
   Future<void> _checkWishlist() async {
     final user = supabase.auth.currentUser;
@@ -141,18 +198,21 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
       } else {
         await supabase.from('wishlist').insert({
           'user_uuid': user.id,
+          'id_user': user.id,  
           'id_destinasi': widget.destinationData['id_destinasi'],
         });
       }
       setState(() => _isWishlisted = !_isWishlisted);
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Gagal memperbarui wishlist: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memperbarui wishlist: $e')),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  // ─── Maps & Checkout ──────────────────────────────────────────────────────
 
   void _openMaps() async {
     final namaDestinasi = widget.destinationData['nama'];
@@ -163,7 +223,6 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
     if (await canLaunchUrl(mapsUrl)) {
       await launchUrl(mapsUrl, mode: LaunchMode.externalApplication);
     } else {
-      debugPrint('Could not launch $mapsUrl');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Gagal membuka Google Maps')),
       );
@@ -174,10 +233,13 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => CheckoutScreen(destinasi: widget.destinationData),
+        builder: (context) =>
+            CheckoutScreen(destinasi: widget.destinationData),
       ),
     );
   }
+
+  // ─── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -189,6 +251,7 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ── Carousel Section ──
             Stack(
               children: [
                 ClipRRect(
@@ -196,24 +259,68 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
                     bottomLeft: Radius.circular(30),
                     bottomRight: Radius.circular(30),
                   ),
-                  child: Image.network(
-                    widget.destinationData['foto'] ??
-                        'https://via.placeholder.com/400',
+                  child: SizedBox(
                     width: double.infinity,
                     height: 350,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      width: double.infinity,
-                      height: 350,
-                      color: Colors.grey.shade300,
-                      child: const Icon(
-                        Icons.image_not_supported,
-                        size: 50,
-                        color: Colors.grey,
-                      ),
-                    ),
+                    child: _allPhotos.isEmpty
+                        ? Container(
+                            color: Colors.grey.shade300,
+                            child: const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          )
+                        : PageView.builder(
+                            controller: _pageController,
+                            itemCount: _allPhotos.length,
+                            onPageChanged: (index) {
+                              setState(() => _currentImageIndex = index);
+                            },
+                            itemBuilder: (context, index) {
+                              return Image.network(
+                                _allPhotos[index],
+                                width: double.infinity,
+                                height: 350,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  color: Colors.grey.shade300,
+                                  child: const Icon(
+                                    Icons.image_not_supported,
+                                    size: 50,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                   ),
                 ),
+
+                // Dot Indicator
+                if (_allPhotos.length > 1)
+                  Positioned(
+                    bottom: 15,
+                    left: 0,
+                    right: 0,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(_allPhotos.length, (index) {
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                          width: _currentImageIndex == index ? 20 : 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: _currentImageIndex == index
+                                ? Colors.white
+                                : Colors.white.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+
+                // Tombol Back
                 Positioned(
                   top: 50,
                   left: 20,
@@ -222,6 +329,8 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
                     onPressed: () => Navigator.pop(context),
                   ),
                 ),
+
+                // Tombol Wishlist
                 Positioned(
                   top: 50,
                   right: 20,
@@ -237,11 +346,14 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
                 ),
               ],
             ),
+
+            // ── Content Section ──
             Padding(
               padding: const EdgeInsets.all(20.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Nama & Rating
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -287,7 +399,15 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
                       ),
                     ],
                   ),
+
+                  const SizedBox(height: 20),
+
+                  // ── Jam Operasional ──
+                  _buildJamOperasional(darkGreen),
+
                   const SizedBox(height: 30),
+
+                  // Lokasi Google Maps
                   const Text(
                     'Lokasi Google Maps',
                     style: TextStyle(
@@ -304,7 +424,8 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                        border:
+                            Border.all(color: Colors.grey.withOpacity(0.3)),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withOpacity(0.05),
@@ -327,7 +448,8 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
                           ),
                           const SizedBox(height: 10),
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 5),
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 5),
                             child: Row(
                               children: [
                                 const Icon(
@@ -353,7 +475,10 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
                       ),
                     ),
                   ),
+
                   const SizedBox(height: 30),
+
+                  // Deskripsi
                   const Text(
                     'Description',
                     style: TextStyle(
@@ -373,7 +498,10 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
                       fontFamily: 'Poppins',
                     ),
                   ),
+
                   const SizedBox(height: 30),
+
+                  // Ulasan
                   const Text(
                     'Ulasan Pengunjung',
                     style: TextStyle(
@@ -384,12 +512,16 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
                   ),
                   const SizedBox(height: 10),
                   if (_reviews.isEmpty)
-                    const Text('Belum ada ulasan.')
+                    const Text(
+                      'Belum ada ulasan.',
+                      style: TextStyle(color: Colors.grey),
+                    )
                   else
                     ..._reviews
                         .take(2)
                         .map((review) => _buildReviewItem(review, darkGreen))
                         .toList(),
+
                   const SizedBox(height: 100),
                 ],
               ),
@@ -397,6 +529,8 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
           ],
         ),
       ),
+
+      // ── Bottom Bar ──
       bottomNavigationBar: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
         decoration: const BoxDecoration(
@@ -441,6 +575,141 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
     );
   }
 
+  // ─── Jam Operasional Widget ───────────────────────────────────────────────
+
+  Widget _buildJamOperasional(Color darkGreen) {
+    final String weekday =
+        (widget.destinationData['weekday'] as String?)?.trim() ?? '-';
+    final String weekend =
+        (widget.destinationData['weekend'] as String?)?.trim() ?? '-';
+
+    // Deteksi hari ini weekday atau weekend
+    final int todayWeekday = DateTime.now().weekday; // 1=Sen ... 7=Min
+    final bool isWeekend = todayWeekday == 6 || todayWeekday == 7;
+    final String jamHariIni = isWeekend ? weekend : weekday;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: darkGreen.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: darkGreen.withOpacity(0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row
+          Row(
+            children: [
+              Icon(Icons.access_time_rounded, color: darkGreen, size: 20),
+              const SizedBox(width: 8),
+              const Text(
+                'Jam Operasional',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'Poppins',
+                ),
+              ),
+              const Spacer(),
+              // Badge "Hari ini"
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: darkGreen,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  'Hari ini: $jamHariIni',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontFamily: 'Poppins',
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+          const Divider(height: 1),
+          const SizedBox(height: 14),
+
+          // Weekday row
+          _buildJamRow(
+            icon: Icons.calendar_today_outlined,
+            label: 'Senin – Jumat',
+            jam: weekday,
+            isActive: !isWeekend,
+            darkGreen: darkGreen,
+          ),
+
+          const SizedBox(height: 10),
+
+          // Weekend row
+          _buildJamRow(
+            icon: Icons.weekend_outlined,
+            label: 'Sabtu – Minggu',
+            jam: weekend,
+            isActive: isWeekend,
+            darkGreen: darkGreen,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJamRow({
+    required IconData icon,
+    required String label,
+    required String jam,
+    required bool isActive,
+    required Color darkGreen,
+  }) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: isActive ? darkGreen : Colors.grey,
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontFamily: 'Poppins',
+            color: isActive ? Colors.black87 : Colors.grey,
+            fontWeight: isActive ? FontWeight.w500 : FontWeight.normal,
+          ),
+        ),
+        const Spacer(),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: isActive
+                ? darkGreen.withOpacity(0.1)
+                : Colors.grey.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            jam,
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: 'Poppins',
+              fontWeight: FontWeight.w600,
+              color: isActive ? darkGreen : Colors.grey,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── Helper Widgets ───────────────────────────────────────────────────────
+
   Widget _buildCircleButton({
     required IconData icon,
     Color? color,
@@ -465,7 +734,8 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const CircleAvatar(
-            backgroundImage: AssetImage('assets/images/user_placeholder.png'),
+            backgroundImage:
+                AssetImage('assets/images/user_placeholder.png'),
             radius: 20,
           ),
           const SizedBox(width: 15),
@@ -491,7 +761,8 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
                           review.rating.toStringAsFixed(1),
                           style: const TextStyle(fontSize: 12),
                         ),
-                        const Icon(Icons.star, color: Colors.amber, size: 16),
+                        const Icon(Icons.star,
+                            color: Colors.amber, size: 16),
                       ],
                     ),
                   ],

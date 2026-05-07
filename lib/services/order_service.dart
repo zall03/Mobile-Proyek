@@ -59,7 +59,7 @@ class OrderService {
         'jumlah_tiket': jumlahTiket,
         'total_harga': totalHarga,
         'status': 'paid',
-        'user_id': userId,
+        'user_id': userId, //ini
         'user_uuid': userId,
         'id_destinasi': destinasiId,
         'order_id': orderId,

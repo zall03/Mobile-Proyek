@@ -86,8 +86,15 @@ class _PaymentWebViewState extends State<PaymentWebView> {
     final status = await MidtransService.cekStatusPembayaran(widget.orderId);
     if (status == 'settlement' || status == 'capture') {
       final orderService = OrderService();
+      
+      await supabase.auth.refreshSession();
+      await Future.delayed(const Duration(milliseconds: 500));
+
       final user = supabase.auth.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        debugPrint("USER NULL");
+        return;
+      }
 
       final result = await orderService.saveOrder(
         orderId: widget.orderId,

@@ -22,10 +22,10 @@ class Notifikasi {
   factory Notifikasi.fromJson(Map<String, dynamic> json) {
     return Notifikasi(
       id: json['id'],
-      userUuid: json['user_uuid'],
-      title: json['title'],
-      message: json['message'],
-      type: json['type'],
+      userUuid: json['user_uuid'] ?? '',
+      title: json['title'] ?? '',
+      message: json['isi'] ?? '',        // kolom di DB adalah 'isi'
+      type: json['type'] ?? 'info',
       isRead: json['is_read'] ?? false,
       data: json['data'] is Map ? json['data'] : null,
       createdAt: DateTime.parse(json['created_at']),
@@ -36,7 +36,7 @@ class Notifikasi {
     return {
       'user_uuid': userUuid,
       'title': title,
-      'message': message,
+      'isi': message,                    // kolom di DB adalah 'isi'
       'type': type,
       'is_read': isRead,
       'data': data,

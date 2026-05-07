@@ -48,7 +48,7 @@ class NotifikasiService {
     await supabase.from('notifikasi').insert({
       'user_uuid': userId,
       'title': title,
-      'message': message,
+      'isi': message,
       'type': type,
       'data': data,
     });

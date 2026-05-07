@@ -1,57 +1,52 @@
-name: Flutter CI/CD
+name: Flutter CI
 
 on:
   push:
     branches: [ main ]
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
 
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: ☕ Setup Java (Required for Firebase & Android)
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
       - name: 🐦 Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.9'
-          cache: true
+          flutter-version: '3.41.2' 
 
       - name: 📦 Install Dependencies
         run: flutter pub get
 
-      - name: 🏗️ Build APK (Release)
-        run: flutter build apk --release --flavor prod --target-platform android-arm64
+      - name: 🏗️ Build APK
+        run: flutter build apk --release
 
-      - name: 🏗️ Build AAB (Play Store)
-        run: flutter build appbundle --release --flavor prod
-
-      - name: 🚀 Upload to Firebase App Distribution
-        uses: w9jds/firebase-action@master
-        with:
-          args: appdistribution:distribute build/app/outputs/flutter-apk/app-prod-release.apk --app ${{ secrets.FIREBASE_APP_ID }} --groups "testers"
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-
-      - name: 📤 Upload Artifacts
+      - name: 📤 Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-assets
-          path: |
-            build/app/outputs/flutter-apk/app-prod-release.apk
-            build/app/outputs/bundle/prodRelease/app-prod-release.aab
+          name: app-release
+          path: build/app/outputs/flutter-apk/app-release.apk
 
-      - name: 📢 Telegram Notification
+      - name: 📢 Notify Telegram (Success)
+        if: success()
+        run: |
+          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage \
+          -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+          -d text="✅ Build APK berhasil untuk commit ${{ github.sha }}"
+          
+      - name: ❌ Notify Telegram (Failed)
+        if: failure()
+        run: |
+          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage \
+          -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+          -d text="❌ Build gagal di workflow GitHub Actions"
+          
+      - name: 📤 Send APK to Telegram
         if: success()
         run: |
           curl -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument \
           -F chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-          -F document=@build/app/outputs/flutter-apk/app-prod-release.apk \
-          -F caption="✅ Build Berhasil! APK & AAB Terbuat. Firebase App Distribution Terupdate! 🚀"
+          -F document=@build/app/outputs/flutter-apk/app-release.apk \
+          -F caption="📦 APK terbaru berhasil di-build 🚀"

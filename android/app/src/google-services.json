@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "633354321919",
+    "project_id": "wiskuyy-41940",
+    "storage_bucket": "wiskuyy-41940.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:633354321919:android:205b1fdba9c48499fab1ca",
+        "android_client_info": {
+          "package_name": "wiskuyy.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCOVm4E7boPOO-eQ0IcLjh9agFUV5p626o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

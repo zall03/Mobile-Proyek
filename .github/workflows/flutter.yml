@@ -31,7 +31,7 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 29
-          script: flutter test integration_test/app_test.dart
+          script: flutter test integration_test/app_test.dart -d android
 
       - name: 🏗️ Build APK (Release)
         run: flutter build apk --release --flavor prod --target-platform android-arm64

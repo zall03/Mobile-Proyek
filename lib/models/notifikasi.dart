@@ -24,7 +24,7 @@ class Notifikasi {
       id: json['id'],
       userUuid: json['user_uuid'] ?? '',
       title: json['title'] ?? '',
-      message: json['isi'] ?? '',        // kolom di DB adalah 'isi'
+      message: json['isi'] ?? '',        
       type: json['type'] ?? 'info',
       isRead: json['is_read'] ?? false,
       data: json['data'] is Map ? json['data'] : null,
@@ -36,7 +36,7 @@ class Notifikasi {
     return {
       'user_uuid': userUuid,
       'title': title,
-      'isi': message,                    // kolom di DB adalah 'isi'
+      'isi': message,                    
       'type': type,
       'is_read': isRead,
       'data': data,

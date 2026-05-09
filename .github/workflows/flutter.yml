@@ -20,14 +20,14 @@ jobs:
       - name: 📦 Install Dependencies
         run: flutter pub get
 
-      - name: 🏗️ Build APK
-        run: flutter build apk --release --flavor prod --target lib/main.dart
+      - name: 🏗️ Build APK (Split Per ABI)
+        run: flutter build apk --release --flavor prod --target lib/main.dart --split-per-abi
 
       - name: 📤 Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: build/app/outputs/flutter-apk/app-prod-release.apk
+          path: build/app/outputs/flutter-apk/app-arm64-v8a-prod-release.apk
 
       - name: 📢 Notify Telegram (Success)
         if: success()
@@ -46,7 +46,15 @@ jobs:
       - name: 📤 Send APK to Telegram
         if: success()
         run: |
-          curl -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument \
+          RESPONSE=$(curl -w "\nHTTP_STATUS:%{http_code}" -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument \
           -F chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-          -F document=@build/app/outputs/flutter-apk/app-prod-release.apk \
-          -F caption="📦 APK terbaru berhasil di-build 🚀"
+          -F document=@build/app/outputs/flutter-apk/app-arm64-v8a-prod-release.apk \
+          -F caption="📦 APK (arm64) terbaru berhasil di-build 🚀")
+          
+          echo "$RESPONSE"
+          
+          # Jika gagal (HTTP Status bukan 200), gagalkan juga step ini
+          if [[ "$RESPONSE" != *"HTTP_STATUS:200"* ]]; then
+            echo "Gagal mengirim APK ke Telegram!"
+            exit 1
+          fi

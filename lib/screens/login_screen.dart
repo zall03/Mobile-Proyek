@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'register_screen.dart';
 import 'home_screen.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -37,32 +38,25 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _handleLogin() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Email dan Password tidak boleh kosong!")),
-      );
+      _showSnackBar("Email dan Password tidak boleh kosong!");
       return;
     }
+
     setState(() => _isLoading = true);
+
     try {
       final res = await _supabase.auth.signInWithPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
-      if (res.session != null) {
+
+      if (res.session != null && mounted) {
         await _saveSessionAndNavigate(res.user!.email!);
       }
     } on AuthException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message), backgroundColor: Colors.red),
-        );
-      }
+      _showSnackBar(e.message);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
-        );
-      }
+      _showSnackBar("Terjadi kesalahan. Silakan coba lagi.");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -92,20 +86,21 @@ class _LoginScreenState extends State<LoginScreen> {
         accessToken: accessToken,
       );
 
-      if (res.user != null) {
+      if (res.user != null && mounted) {
         await _saveSessionAndNavigate(res.user!.email!);
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Google Login Gagal: $e"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      _showSnackBar("Google Sign In gagal: $e");
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showSnackBar(String message, {Color? color}) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: color ?? Colors.red),
+      );
     }
   }
 
@@ -137,6 +132,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(color: Colors.grey, fontSize: 16),
               ),
               const SizedBox(height: 40),
+
+              // Email Field
               const Text(
                 'Email',
                 style: TextStyle(
@@ -157,6 +154,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 20),
+
+              // Password Field
               const Text(
                 'Password',
                 style: TextStyle(
@@ -187,33 +186,95 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 30),
+
+              // Lupa Password
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ForgotPasswordScreen(),
+                    ),
+                  ),
+                  child: const Text(
+                    'Lupa Password?',
+                    style: TextStyle(
+                      color: Color(0xFF1E7AC1),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // === BUTTON LOGIN UTAMA (Lebih Profesional) ===
               SizedBox(
                 width: double.infinity,
+                height: 56,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _handleLogin,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _brandBlue,
-                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    foregroundColor: Colors.white,
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Access Now'),
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.5,
+                          ),
+                        )
+                      : const Text(
+                          'Access Now',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
-              const SizedBox(height: 20),
+
+              const SizedBox(height: 16),
+
+              // === GOOGLE BUTTON (Lebih Profesional) ===
               SizedBox(
                 width: double.infinity,
+                height: 56,
                 child: OutlinedButton.icon(
                   onPressed: _isLoading ? null : _handleGoogleSignIn,
-                  icon: const Icon(Icons.g_mobiledata, size: 30),
-                  label: const Text('Sign in with Google'),
+                  icon: Image.asset(
+                    'assets/google_logo.png', // Taruh logo Google di folder assets
+                    height: 24,
+                  ),
+                  label: const Text(
+                    'Sign in with Google',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    side: const BorderSide(color: Colors.grey, width: 1.2),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                 ),
               ),
+
               const SizedBox(height: 30),
+
+              // Register Link
               Center(
                 child: GestureDetector(
                   onTap: () => Navigator.push(
@@ -239,6 +300,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
+              const SizedBox(height: 20),
             ],
           ),
         ),

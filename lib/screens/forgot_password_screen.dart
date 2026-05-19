@@ -15,7 +15,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final Color _brandBlue = const Color(0xFF1E7AC1);
   final _supabase = Supabase.instance.client;
 
-  Future<void> _sendResetLink() async {
+  Future<void> _sendOtp() async {
     final email = _emailController.text.trim();
 
     if (email.isEmpty) {
@@ -23,7 +23,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       return;
     }
 
-    // Validasi sederhana email
     if (!email.contains('@')) {
       _showSnackBar("Format email tidak valid!");
       return;
@@ -32,9 +31,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await _supabase.auth.resetPasswordForEmail(
-        email,
-        redirectTo: 'wiskuyy://reset-password', // ← GANTI sesuai scheme app kamu
+      await _supabase.auth.signInWithOtp(
+        email: email,
+        shouldCreateUser: false, // jangan buat user baru
       );
 
       if (mounted) {
@@ -55,7 +54,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   String _getErrorMessage(AuthException e) {
-    if (e.message.contains('Invalid') || e.message.contains('not found')) {
+    if (e.message.contains('not found') || e.message.contains('Invalid')) {
       return "Email tidak terdaftar.";
     }
     if (e.message.contains('Too many requests')) {
@@ -67,10 +66,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   void _showSnackBar(String message, {Color? color}) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: color ?? _brandBlue,
-        ),
+        SnackBar(content: Text(message), backgroundColor: color ?? _brandBlue),
       );
     }
   }
@@ -106,11 +102,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Masukkan email kamu untuk menerima link reset password',
+                'Masukkan email kamu untuk menerima kode OTP',
                 style: TextStyle(color: Colors.grey, fontSize: 16),
               ),
               const SizedBox(height: 40),
-
               const Text(
                 'Email',
                 style: TextStyle(
@@ -131,11 +126,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
               ),
               const SizedBox(height: 30),
-
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : _sendResetLink,
+                  onPressed: _isLoading ? null : _sendOtp,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _brandBlue,
                     padding: const EdgeInsets.symmetric(vertical: 18),
@@ -152,7 +146,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             strokeWidth: 2,
                           ),
                         )
-                      : const Text('Kirim Link Reset'),
+                      : const Text('Kirim Kode OTP'),
                 ),
               ),
             ],

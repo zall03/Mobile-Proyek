@@ -244,14 +244,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 16),
 
-              // === GOOGLE BUTTON (Lebih Profesional) ===
               SizedBox(
                 width: double.infinity,
                 height: 56,
                 child: OutlinedButton.icon(
                   onPressed: _isLoading ? null : _handleGoogleSignIn,
                   icon: Image.asset(
-                    'assets/google_logo.png', // Taruh logo Google di folder assets
+                    'assets/images/google_logo.png',
                     height: 24,
                   ),
                   label: const Text(

@@ -25,17 +25,18 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     _checkRecoverySession();
   }
 
-  // Cek apakah user memang sedang dalam mode reset password
   Future<void> _checkRecoverySession() async {
     final session = _supabase.auth.currentSession;
     if (session == null || session.user == null) {
       if (mounted) {
         _showSnackBar(
-          "Sesi reset password tidak valid.\nSilakan minta link baru.",
+          "Sesi tidak valid. Silakan ulangi proses.",
           color: Colors.red,
         );
         Future.delayed(const Duration(seconds: 2), () {
-          if (mounted) Navigator.pop(context);
+          if (mounted) {
+            Navigator.popUntil(context, (route) => route.isFirst);
+          }
         });
       }
     }

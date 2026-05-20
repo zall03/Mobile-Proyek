@@ -50,18 +50,6 @@ android {
             )
         }
     }
-
-    flavorDimensions += "env"
-    productFlavors {
-        create("dev") {
-            dimension = "env"
-            applicationIdSuffix = ".dev"
-            versionNameSuffix = "-dev"
-        }
-        create("prod") {
-            dimension = "env"
-        }
-    }
 }
 
 flutter {

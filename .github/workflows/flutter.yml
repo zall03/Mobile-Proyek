@@ -15,19 +15,19 @@ jobs:
       - name: 🐦 Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.2'
+          channel: 'stable'
 
       - name: 📦 Install Dependencies
         run: flutter pub get
 
       - name: 🏗️ Build APK (Split Per ABI)
-        run: flutter build apk --release --flavor prod --target lib/main.dart --split-per-abi
+        run: flutter build apk --release --target lib/main.dart --split-per-abi
 
       - name: 📤 Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: build/app/outputs/flutter-apk/app-arm64-v8a-prod-release.apk
+          path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
 
       - name: 📢 Notify Telegram (Success)
         if: success()
@@ -48,7 +48,7 @@ jobs:
         run: |
           RESPONSE=$(curl -w "\nHTTP_STATUS:%{http_code}" -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument \
           -F chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-          -F document=@build/app/outputs/flutter-apk/app-arm64-v8a-prod-release.apk \
+          -F document=@build/app/outputs/flutter-apk/app-arm64-v8a-release.apk \
           -F caption="📦 APK (arm64) terbaru berhasil di-build 🚀")
           
           echo "$RESPONSE"

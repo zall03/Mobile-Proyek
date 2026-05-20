@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/midtrans_service.dart';
 import 'tiket.dart';
 import '../services/order_service.dart';
+import '../services/notifikasi_service.dart';
+import 'package:intl/intl.dart';
 
 class PaymentWebView extends StatefulWidget {
   final String redirectUrl;
@@ -86,7 +88,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
     final status = await MidtransService.cekStatusPembayaran(widget.orderId);
     if (status == 'settlement' || status == 'capture') {
       final orderService = OrderService();
-      
+
       await supabase.auth.refreshSession();
       await Future.delayed(const Duration(milliseconds: 500));
 
@@ -107,6 +109,21 @@ class _PaymentWebViewState extends State<PaymentWebView> {
       );
 
       if (result['success'] && mounted) {
+        // Kirim notifikasi pembayaran berhasil
+        final notifService = NotifikasiService();
+        await notifService.sendPaymentSuccessNotification(
+          userId: user.id,
+          userEmail: user.email ?? '',
+          namaDestinasi: widget.namaDestinasi,
+          orderId: widget.orderId,
+          tanggalBerangkat: DateFormat(
+            'd MMMM yyyy',
+            'id',
+          ).format(widget.tanggalBerangkat),
+          jumlahTiket: widget.jumlahTiket,
+          totalHarga: widget.totalHarga,
+        );
+
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Pembayaran berhasil!')));

@@ -10,7 +10,6 @@ class ReminderService {
     try {
       print('🔄 Checking H-1 reminders...');
 
-      // Ambil semua pemesanan yang tanggal berangkatnya besok
       final tomorrow = DateTime.now().add(const Duration(days: 1));
       final tomorrowFormatted = DateFormat('yyyy-MM-dd').format(tomorrow);
 

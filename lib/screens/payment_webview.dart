@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
 import '../services/midtrans_service.dart';
+import '../services/notifikasi_service.dart';
 import 'tiket.dart';
 import '../services/order_service.dart';
-import '../services/notifikasi_service.dart';
-import 'package:intl/intl.dart';
 
 class PaymentWebView extends StatefulWidget {
   final String redirectUrl;
@@ -37,6 +37,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
   late final WebViewController _controller;
   bool _isPaymentComplete = false;
   final supabase = Supabase.instance.client;
+  final NotifikasiService _notifikasiService = NotifikasiService();
 
   @override
   void initState() {
@@ -47,10 +48,9 @@ class _PaymentWebViewState extends State<PaymentWebView> {
         NavigationDelegate(
           onNavigationRequest: (NavigationRequest request) {
             final url = request.url;
-            // Tangkap custom scheme sebelum WebView mencoba memuatnya
             if (url.startsWith('myapp://payment-success')) {
               _handlePaymentSuccess();
-              return NavigationDecision.prevent; // Jangan load URL
+              return NavigationDecision.prevent;
             } else if (url.startsWith('myapp://payment-error')) {
               _handlePaymentError();
               return NavigationDecision.prevent;
@@ -58,7 +58,6 @@ class _PaymentWebViewState extends State<PaymentWebView> {
             return NavigationDecision.navigate;
           },
           onUrlChange: (UrlChange change) {
-            // Backup detection jika perlu
             final url = change.url ?? '';
             if (url.startsWith('myapp://payment-success')) {
               _handlePaymentSuccess();
@@ -67,7 +66,6 @@ class _PaymentWebViewState extends State<PaymentWebView> {
             }
           },
           onPageFinished: (String url) {
-            // Fallback untuk URL internal Midtrans
             if (url.contains('#/success') ||
                 url.contains('transaction_status=settlement')) {
               _handlePaymentSuccess();
@@ -109,20 +107,8 @@ class _PaymentWebViewState extends State<PaymentWebView> {
       );
 
       if (result['success'] && mounted) {
-        // Kirim notifikasi pembayaran berhasil
-        final notifService = NotifikasiService();
-        await notifService.sendPaymentSuccessNotification(
-          userId: user.id,
-          userEmail: user.email ?? '',
-          namaDestinasi: widget.namaDestinasi,
-          orderId: widget.orderId,
-          tanggalBerangkat: DateFormat(
-            'd MMMM yyyy',
-            'id',
-          ).format(widget.tanggalBerangkat),
-          jumlahTiket: widget.jumlahTiket,
-          totalHarga: widget.totalHarga,
-        );
+        // ============= KIRIM NOTIFIKASI PEMBAYARAN BERHASIL =============
+        await _kirimNotifikasiPembayaranBerhasil(user.id, user.email ?? '');
 
         ScaffoldMessenger.of(
           context,
@@ -155,6 +141,25 @@ class _PaymentWebViewState extends State<PaymentWebView> {
         );
         Navigator.pop(context);
       }
+    }
+  }
+
+  /// Kirim notifikasi pembayaran berhasil
+  Future<void> _kirimNotifikasiPembayaranBerhasil(
+    String userId,
+    String userEmail,
+  ) async {
+    try {
+      await _notifikasiService.sendPaymentSuccessNotification(
+        userId: userId,
+        userEmail: userEmail,
+        namaDestinasi: widget.namaDestinasi,
+        nomorTiket: widget.orderId,
+        totalHarga: widget.totalHarga,
+      );
+      debugPrint('✓ Notifikasi pembayaran terkirim');
+    } catch (e) {
+      debugPrint('Error sending payment notification: $e');
     }
   }
 

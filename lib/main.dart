@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'services/reminder_service.dart';
 
 // Screens
 import 'screens/splash_screen.dart';
@@ -17,7 +18,14 @@ void main() async {
     url: 'https://zglovosnylnowriqeaya.supabase.co',
     anonKey: 'sb_publishable_p6ntwZ-oKKajwGV3lUhaHg_L1YUrhD0',
   );
-
+  print('🚀 Initializing reminder service...');
+  try {
+    final reminderService = ReminderService();
+    await reminderService.initializeReminderService();
+    print('✓ Reminder service initialized');
+  } catch (e) {
+    print('✗ Error initializing reminder service: $e');
+  }
   runApp(const WisKuyyApp());
 }
 

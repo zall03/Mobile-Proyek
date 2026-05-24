@@ -5,8 +5,9 @@ class Notifikasi {
   final String message;
   final String type;
   final bool isRead;
-  final Map<String, dynamic>? data;
   final DateTime createdAt;
+  final Map<String, dynamic>? data;
+  final String? icon;
 
   Notifikasi({
     required this.id,
@@ -15,31 +16,39 @@ class Notifikasi {
     required this.message,
     required this.type,
     required this.isRead,
-    this.data,
     required this.createdAt,
+    this.data,
+    this.icon,
   });
 
+  // Factory untuk create dari JSON Supabase
   factory Notifikasi.fromJson(Map<String, dynamic> json) {
     return Notifikasi(
-      id: json['id'],
+      id: json['id'] ?? 0,
       userUuid: json['user_uuid'] ?? '',
       title: json['title'] ?? '',
-      message: json['isi'] ?? '',        
+      message: json['isi'] ?? json['message'] ?? '',
       type: json['type'] ?? 'info',
       isRead: json['is_read'] ?? false,
-      data: json['data'] is Map ? json['data'] : null,
-      createdAt: DateTime.parse(json['created_at']),
+      createdAt: DateTime.parse(
+        json['created_at'] ?? DateTime.now().toIso8601String(),
+      ),
+      data: json['data'],
+      icon: json['icon'],
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'user_uuid': userUuid,
       'title': title,
-      'isi': message,                    
+      'isi': message,
       'type': type,
       'is_read': isRead,
+      'created_at': createdAt.toIso8601String(),
       'data': data,
+      'icon': icon,
     };
   }
 }

@@ -144,7 +144,6 @@ class _PaymentWebViewState extends State<PaymentWebView> {
     }
   }
 
-  /// Kirim notifikasi pembayaran berhasil
   Future<void> _kirimNotifikasiPembayaranBerhasil(
     String userId,
     String userEmail,

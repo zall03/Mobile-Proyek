@@ -33,7 +33,6 @@ class ReminderService {
 
       print('📨 Menemukan ${orders.length} pemesanan untuk reminder H-1');
 
-      // Kirim notifikasi untuk setiap pemesanan
       for (final order in orders) {
         try {
           final userId = order['user_id'];

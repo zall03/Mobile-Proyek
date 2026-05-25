@@ -18,8 +18,8 @@ jobs:
         run: flutter pub get
 
       - name: 🏗️ Build APK
-        run: flutter build apk --debug --flavor dev
-
+        run: flutter build apk --debug
+        
       - name: 🔍 List APK Files
         run: find build/app/outputs/ -name "*.apk"
 

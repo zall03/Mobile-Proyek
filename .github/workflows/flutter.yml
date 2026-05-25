@@ -17,23 +17,17 @@ jobs:
       - name: 📦 Install Dependencies
         run: flutter pub get
 
-      # ← TAMBAHKAN STEP INI
-      - name: 🔑 Setup Keystore
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release-keystore.jks
-
       - name: 🏗️ Build APK
-        run: flutter build apk --debug
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: flutter build apk --debug --flavor dev
+
+      - name: 🔍 List APK Files
+        run: find build/app/outputs/ -name "*.apk"
 
       - name: 📤 Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          name: app-debug
+          path: build/app/outputs/flutter-apk/app-dev-debug.apk
 
       - name: 📢 Notify Telegram (Success)
         if: success()
@@ -52,7 +46,9 @@ jobs:
       - name: 📤 Send APK to Telegram
         if: success()
         run: |
+          APK_PATH=$(find build/app/outputs/ -name "*.apk" | head -1)
+          echo "Sending APK: $APK_PATH"
           curl -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument \
           -F chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-          -F document=@build/app/outputs/flutter-apk/app-dev-debug.apk \
-          -F caption="📦 APK (arm64-v8a) berhasil di-build! 🚀"
+          -F document=@"$APK_PATH" \
+          -F caption="📦 APK Debug berhasil di-build! Commit: ${{ github.sha }}"

@@ -21,6 +21,7 @@ dependencies:
   webview_flutter: ^4.13.0
   http: ^1.2.0
   flutter_local_notifications: ^17.0.0
+  video_player: ^2.9.2  
 
 dev_dependencies:
   flutter_test:

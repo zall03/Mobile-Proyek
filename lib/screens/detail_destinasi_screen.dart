@@ -4,6 +4,7 @@ import '../models/review.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import 'checkout_screen.dart';
+import 'video_player_screen.dart';
 
 class DetailDestinasiScreen extends StatefulWidget {
   final Map<String, dynamic> destinationData;
@@ -33,7 +34,7 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
   // Carousel
   int _currentImageIndex = 0;
   final PageController _pageController = PageController();
-  List<String> _allPhotos = [];
+  List<Map<String, dynamic>> _mediaItems = [];
 
   final currencyFormatter = NumberFormat.currency(
     locale: 'id_ID',
@@ -61,36 +62,45 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
     final coverPhoto = widget.destinationData['foto'] as String?;
 
     try {
-      final response = await supabase
+      final List<Map<String, dynamic>> media = [];
+
+      if (coverPhoto != null && coverPhoto.trim().isNotEmpty) {
+        media.add({'type': 'image', 'url': coverPhoto.trim()});
+      }
+
+      final photos = await supabase
           .from('destinasi_fotos')
           .select('foto')
           .eq('id_destinasi', widget.destinationData['id_destinasi']);
 
-      final List<String> photos = [];
-
-      if (coverPhoto != null && coverPhoto.trim().isNotEmpty) {
-        photos.add(coverPhoto.trim());
-      }
-
-      for (var item in response) {
+      for (var item in photos) {
         final url = (item['foto'] as String?)?.trim();
+
         if (url != null && url.isNotEmpty) {
-          photos.add(url);
+          media.add({'type': 'image', 'url': url});
         }
       }
 
+      final video = await supabase
+          .from('destinasi_media')
+          .select('url,thumbnail')
+          .eq('id_destinasi', widget.destinationData['id_destinasi'])
+          .eq('type', 'video')
+          .maybeSingle();
+
+      if (video != null) {
+        media.add({
+          'type': 'video',
+          'url': video['url'],
+          'thumbnail': video['thumbnail'],
+        });
+      }
+
       setState(() {
-        _allPhotos = photos.isEmpty
-            ? ['https://via.placeholder.com/400']
-            : photos;
+        _mediaItems = media;
       });
     } catch (e) {
-      debugPrint('Error fetching photos: $e');
-      setState(() {
-        _allPhotos = coverPhoto != null && coverPhoto.trim().isNotEmpty
-            ? [coverPhoto.trim()]
-            : ['https://via.placeholder.com/400'];
-      });
+      debugPrint('Error fetching media: $e');
     }
   }
 
@@ -198,15 +208,15 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
       } else {
         await supabase.from('wishlist').insert({
           'user_uuid': user.id,
-          'id_user': user.id,  
+          'id_user': user.id,
           'id_destinasi': widget.destinationData['id_destinasi'],
         });
       }
       setState(() => _isWishlisted = !_isWishlisted);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal memperbarui wishlist: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal memperbarui wishlist: $e')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -233,8 +243,7 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            CheckoutScreen(destinasi: widget.destinationData),
+        builder: (context) => CheckoutScreen(destinasi: widget.destinationData),
       ),
     );
   }
@@ -262,7 +271,7 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
                   child: SizedBox(
                     width: double.infinity,
                     height: 350,
-                    child: _allPhotos.isEmpty
+                    child: _mediaItems.isEmpty
                         ? Container(
                             color: Colors.grey.shade300,
                             child: const Center(
@@ -271,39 +280,79 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
                           )
                         : PageView.builder(
                             controller: _pageController,
-                            itemCount: _allPhotos.length,
+                            itemCount: _mediaItems.length,
                             onPageChanged: (index) {
                               setState(() => _currentImageIndex = index);
                             },
                             itemBuilder: (context, index) {
-                              return Image.network(
-                                _allPhotos[index],
-                                width: double.infinity,
-                                height: 350,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
-                                  color: Colors.grey.shade300,
-                                  child: const Icon(
-                                    Icons.image_not_supported,
-                                    size: 50,
-                                    color: Colors.grey,
+                              final item = _mediaItems[index];
+
+                              if (item['type'] == 'image') {
+                                return Image.network(
+                                  item['url'],
+                                  width: double.infinity,
+                                  height: 350,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
+                                    color: Colors.grey.shade300,
+                                    child: const Icon(
+                                      Icons.image_not_supported,
+                                      size: 50,
+                                      color: Colors.grey,
+                                    ),
                                   ),
+                                );
+                              }
+
+                              return GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => VideoPlayerScreen(
+                                        videoUrl: item['url'],
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    item['thumbnail'] != null &&
+                                            item['thumbnail']
+                                                .toString()
+                                                .isNotEmpty
+                                        ? Image.network(
+                                            item['thumbnail'],
+                                            fit: BoxFit.cover,
+                                          )
+                                        : Container(color: Colors.black),
+
+                                    Container(color: Colors.black26),
+
+                                    const Center(
+                                      child: Icon(
+                                        Icons.play_circle_fill,
+                                        size: 90,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               );
                             },
                           ),
                   ),
                 ),
-
                 // Dot Indicator
-                if (_allPhotos.length > 1)
+                if (_mediaItems.length > 1)
                   Positioned(
                     bottom: 15,
                     left: 0,
                     right: 0,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(_allPhotos.length, (index) {
+                      children: List.generate(_mediaItems.length, (index) {
                         return AnimatedContainer(
                           duration: const Duration(milliseconds: 300),
                           margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -424,8 +473,7 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
-                        border:
-                            Border.all(color: Colors.grey.withOpacity(0.3)),
+                        border: Border.all(color: Colors.grey.withOpacity(0.3)),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withOpacity(0.05),
@@ -448,8 +496,7 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
                           ),
                           const SizedBox(height: 10),
                           Padding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 5),
+                            padding: const EdgeInsets.symmetric(horizontal: 5),
                             child: Row(
                               children: [
                                 const Icon(
@@ -614,8 +661,10 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
               const Spacer(),
               // Badge "Hari ini"
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: darkGreen,
                   borderRadius: BorderRadius.circular(20),
@@ -670,11 +719,7 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
   }) {
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: isActive ? darkGreen : Colors.grey,
-        ),
+        Icon(icon, size: 16, color: isActive ? darkGreen : Colors.grey),
         const SizedBox(width: 8),
         Text(
           label,
@@ -734,8 +779,7 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const CircleAvatar(
-            backgroundImage:
-                AssetImage('assets/images/user_placeholder.png'),
+            backgroundImage: AssetImage('assets/images/user_placeholder.png'),
             radius: 20,
           ),
           const SizedBox(width: 15),
@@ -761,8 +805,7 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
                           review.rating.toStringAsFixed(1),
                           style: const TextStyle(fontSize: 12),
                         ),
-                        const Icon(Icons.star,
-                            color: Colors.amber, size: 16),
+                        const Icon(Icons.star, color: Colors.amber, size: 16),
                       ],
                     ),
                   ],

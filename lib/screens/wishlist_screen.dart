@@ -50,6 +50,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
     if (user == null) return;
 
     // Optimistic update
+    // ignore: unused_local_variable
     final removed = _wishlist[index];
     setState(() => _wishlist.removeAt(index));
 
@@ -76,6 +77,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
               await _supabase.from('wishlist').insert({
                 'user_uuid': user.id,
                 'id_destinasi': destinasiId,
+                // ignore: equal_keys_in_map
                 'user_uuid': user.id,
               });
               _loadWishlist();

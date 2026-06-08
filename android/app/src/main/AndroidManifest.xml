@@ -2,7 +2,7 @@
     package="com.example.project2">
 
     <application
-        android:label="Project2"
+        android:label="Wiskuyy"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"
         android:name="${applicationName}">

@@ -49,7 +49,6 @@ class _WishlistScreenState extends State<WishlistScreen> {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
 
-    // Optimistic update
     final removed = _wishlist[index];
     setState(() => _wishlist.removeAt(index));
 

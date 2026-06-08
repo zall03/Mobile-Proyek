@@ -18,7 +18,7 @@ void main() async {
     url: 'https://zglovosnylnowriqeaya.supabase.co',
     anonKey: 'sb_publishable_p6ntwZ-oKKajwGV3lUhaHg_L1YUrhD0',
   );
-  print('🚀 Initializing reminder service...');
+  print('Initializing reminder service...');
   try {
     final reminderService = ReminderService();
     await reminderService.initializeReminderService();

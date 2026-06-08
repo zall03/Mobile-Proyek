@@ -75,18 +75,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       String? photoUrl = widget.initialPhoto;
 
-      // 1. Jika ada gambar baru yang dipilih, upload ke Supabase Storage
       if (_imageFile != null) {
-        // Ganti 'avatars' dengan nama bucket kamu di Supabase
         final fileExtension = _imageFile!.path.split('.').last;
         final fileName =
             '${user.id}_${DateTime.now().millisecondsSinceEpoch}.$fileExtension';
         final filePath = '${user.id}/$fileName';
-
-        // Upload gambar (Pastikan RLS Bucket Storage sudah diizinkan untuk INSERT/UPDATE)
         await supabase.storage.from('avatars').upload(filePath, _imageFile!);
-
-        // Ambil URL public gambar yang baru diupload
         photoUrl = supabase.storage.from('avatars').getPublicUrl(filePath);
       }
 

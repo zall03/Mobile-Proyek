@@ -432,7 +432,6 @@ class _NotifikasiScreenState extends State<NotifikasiScreen> {
   }
 }
 
-// ─── Helper classes ───────────────────────────────────────────────────────────
 class _NotifStyle {
   final IconData icon;
   final Color color;

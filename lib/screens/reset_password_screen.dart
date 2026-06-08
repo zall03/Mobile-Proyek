@@ -46,7 +46,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     final password = _passwordController.text.trim();
     final confirmPassword = _confirmController.text.trim();
 
-    // Validasi
     if (password.isEmpty || confirmPassword.isEmpty) {
       _showSnackBar("Password tidak boleh kosong!");
       return;

@@ -280,13 +280,6 @@ class _HomeScreenState extends State<HomeScreen> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          TextButton(
-                            onPressed: () {},
-                            child: Text(
-                              'Lihat Semua',
-                              style: TextStyle(color: _brandBlue),
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -334,13 +327,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () {},
-                            child: Text(
-                              'Lihat Semua',
-                              style: TextStyle(color: _brandBlue),
                             ),
                           ),
                         ],

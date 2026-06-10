@@ -15,12 +15,11 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.2'
+          flutter-version: '3.41.2'  # 3.41.2 belum stable, pakai ini
 
       - name: Install Dependencies
         run: flutter pub get
 
-      # --- Buat keystore dari GitHub Secrets ---
       - name: Create keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/release-keystore.jks
@@ -34,15 +33,18 @@ jobs:
           storeFile=release-keystore.jks
           EOF
 
-      # --- Build APK Release per ABI ---
-      - name: Build APK Release
-        run: flutter build apk --release --split-per-abi
+      # --- Fix: clean + matikan Gradle daemon ---
+      - name: Clean Build
+        run: flutter clean
 
-      # --- Debug untuk melihat APK yang dihasilkan ---
+      - name: Build APK Release
+        run: flutter build apk --release --split-per-abi --no-pub
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dfile.encoding=UTF-8"
+
       - name: Debug APK Files
         run: find build/app/outputs/flutter-apk/ -name "*.apk"
 
-      # --- Kirim APK ke Telegram ---
       - name: 📤 Send APK to Telegram
         run: |
           APK_PATH=$(find build/app/outputs/ -name "Wiskuyy-*.apk" | head -1)
@@ -52,7 +54,6 @@ jobs:
           -F document=@"$APK_PATH" \
           -F caption="📦 Wiskuyy APK berhasil di-build!"
 
-      # --- Notifikasi sukses ---
       - name: Notify Telegram (Success)
         if: success()
         run: |
@@ -60,7 +61,6 @@ jobs:
             -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
             -d text="✅ Build APK Release berhasil untuk commit ${{ github.sha }}"
 
-      # --- Notifikasi gagal ---
       - name: Notify Telegram (Failed)
         if: failure()
         run: |

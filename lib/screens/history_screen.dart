@@ -246,12 +246,18 @@ class _HistoryScreenState extends State<HistoryScreen>
 
   List<Map<String, dynamic>> get _activeOrders => _orders.where((order) {
     final tanggal = DateTime.parse(order['tanggal_berangkat']);
-    return tanggal.isAfter(DateTime.now());
+    final today = DateTime.now();
+    final todayOnly = DateTime(today.year, today.month, today.day);
+    final tanggalOnly = DateTime(tanggal.year, tanggal.month, tanggal.day);
+    return tanggalOnly.isAfter(todayOnly); // hanya besok ke atas
   }).toList();
 
   List<Map<String, dynamic>> get _pastOrders => _orders.where((order) {
     final tanggal = DateTime.parse(order['tanggal_berangkat']);
-    return tanggal.isBefore(DateTime.now());
+    final today = DateTime.now();
+    final todayOnly = DateTime(today.year, today.month, today.day);
+    final tanggalOnly = DateTime(tanggal.year, tanggal.month, tanggal.day);
+    return !tanggalOnly.isAfter(todayOnly); // hari H dan sebelumnya
   }).toList();
 
   @override
@@ -375,7 +381,7 @@ class _HistoryScreenState extends State<HistoryScreen>
   Widget _buildOrderCard(Map<String, dynamic> order, {required bool isActive}) {
     final destinasi = order['destinasi'];
     final tanggalBerangkat = DateTime.parse(order['tanggal_berangkat']);
-    final canReview = order['status'] == 'paid' && !isActive;
+    final canReview = order['status'] == 'paid';
 
     return FutureBuilder<bool>(
       future: _orderService.hasUserReviewed(

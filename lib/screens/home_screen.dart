@@ -21,6 +21,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final Color _brandBlue = const Color(0xFF1E7AC1);
 
   String _userName = 'Pengguna';
+  List<Map<String, dynamic>> _allDestinasi = [];
   List<Map<String, dynamic>> _popularDestinasiList = [];
   List<Map<String, dynamic>> _rekomendasiList = [];
   bool _isLoading = true;
@@ -95,7 +96,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Fungsi untuk menghitung rating rata-rata dari tabel ulasan
   Future<void> _attachRatings() async {
-    // Kumpulkan semua id destinasi dari popular dan rekomendasi
     Set<int> destinasiIds = {};
     for (var item in _popularDestinasiList) {
       destinasiIds.add(item['id_destinasi']);
@@ -109,13 +109,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (destinasiIds.isEmpty) return;
 
-    // Ambil semua rating untuk destinasi tersebut
     final response = await _supabase
         .from('ulasan')
         .select('id_destinasi, rating')
         .inFilter('id_destinasi', destinasiIds.toList());
 
-    // Hitung rata-rata per id_destinasi
     Map<int, double> avgRatings = {};
     Map<int, int> countRatings = {};
 
@@ -132,38 +130,85 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     // Tempelkan ke popular destinasi
-    for (var i = 0; i < _popularDestinasiList.length; i++) {
-      int id = _popularDestinasiList[i]['id_destinasi'];
-      double avg = avgRatings[id] ?? 0.0;
-      _popularDestinasiList[i]['avg_rating'] = avg;
+    for (var i = 0; i < _allDestinasi.length; i++) {
+      final int id = _allDestinasi[i]['id_destinasi'] as int;
+      final double avg = (avgRatings[id] ?? 0.0).toDouble();
+      _allDestinasi[i]['avg_rating'] = avg;
     }
+    for (var item in _rekomendasiList) {
+      final destinasi = item['destinasi'];
 
-    // Tempelkan ke rekomendasi (di dalam objek destinasi)
-    for (var i = 0; i < _rekomendasiList.length; i++) {
-      var destinasi = _rekomendasiList[i]['destinasi'];
       if (destinasi != null) {
-        int id = destinasi['id_destinasi'];
-        double avg = avgRatings[id] ?? 0.0;
-        _rekomendasiList[i]['destinasi']['avg_rating'] = avg;
+        final int id = destinasi['id_destinasi'] as int;
+        destinasi['avg_rating'] = (avgRatings[id] ?? 0.0).toDouble();
       }
     }
   }
 
   Future<void> _loadPopular() async {
     try {
-      final res = await _supabase.rpc('get_popular_destinasi');
-      setState(
-        () => _popularDestinasiList = List<Map<String, dynamic>>.from(res),
-      );
-    } catch (e) {
-      // Fallback: ambil 5 destinasi pertama
-      final res = await _supabase
+      final destinasi = await _supabase
           .from('destinasi')
-          .select('*, kategori(nama_kategori)')
-          .limit(5);
-      setState(
-        () => _popularDestinasiList = List<Map<String, dynamic>>.from(res),
+          .select('*, kategori(nama_kategori)');
+
+      final ulasan = await _supabase
+          .from('ulasan')
+          .select('id_destinasi, rating');
+
+      final Map<int, int> jumlahUlasan = {};
+      final Map<int, double> totalRating = {};
+
+      for (final item in ulasan) {
+        final id = item['id_destinasi'] as int;
+        final rating = (item['rating'] as num).toDouble();
+
+        jumlahUlasan[id] = (jumlahUlasan[id] ?? 0) + 1;
+        totalRating[id] = (totalRating[id] ?? 0) + rating;
+      }
+
+      final List<Map<String, dynamic>> result = List<Map<String, dynamic>>.from(
+        destinasi,
       );
+
+      for (final item in result) {
+        final id = item['id_destinasi'] as int;
+
+        final count = jumlahUlasan[id] ?? 0;
+        final avg = count > 0 ? (totalRating[id] ?? 0) / count : 0.0;
+
+        item['review_count'] = count;
+        item['avg_rating'] = avg;
+      }
+
+      result.sort((a, b) {
+        final reviewA = a['review_count'] ?? 0;
+        final reviewB = b['review_count'] ?? 0;
+
+        if (reviewA != reviewB) {
+          return reviewB.compareTo(reviewA);
+        }
+
+        final ratingA = (a['avg_rating'] ?? 0.0) as double;
+        final ratingB = (b['avg_rating'] ?? 0.0) as double;
+
+        if (ratingA != ratingB) {
+          return ratingB.compareTo(ratingA);
+        }
+
+        final namaA = (a['nama'] ?? '').toString().toLowerCase();
+        final namaB = (b['nama'] ?? '').toString().toLowerCase();
+
+        return namaA.compareTo(namaB);
+      });
+
+      setState(() {
+        _popularDestinasiList = result.take(7).toList();
+      });
+    } catch (e) {
+      debugPrint('Error load popular: $e');
+      setState(() {
+        _popularDestinasiList = [];
+      });
     }
   }
 

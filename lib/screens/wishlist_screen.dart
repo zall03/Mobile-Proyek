@@ -49,6 +49,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
 
+    // Optimistic update
     final removed = _wishlist[index];
     setState(() => _wishlist.removeAt(index));
 
@@ -75,6 +76,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
               await _supabase.from('wishlist').insert({
                 'user_uuid': user.id,
                 'id_destinasi': destinasiId,
+                // ignore: equal_keys_in_map
                 'user_uuid': user.id,
               });
               _loadWishlist();

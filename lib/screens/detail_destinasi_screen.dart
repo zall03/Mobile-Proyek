@@ -225,17 +225,22 @@ class _DetailDestinasiScreenState extends State<DetailDestinasiScreen> {
   // ─── Maps & Checkout ──────────────────────────────────────────────────────
 
   void _openMaps() async {
-    final namaDestinasi = widget.destinationData['nama'];
+    final namaDestinasi = widget.destinationData['nama'] ?? '';
+    final lokasi = widget.destinationData['lokasi'] ?? '';
+
+    final query = Uri.encodeComponent('$namaDestinasi $lokasi');
     final mapsUrl = Uri.parse(
-      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(namaDestinasi)}',
+      'https://www.google.com/maps/search/?api=1&query=$query',
     );
 
-    if (await canLaunchUrl(mapsUrl)) {
+    try {
       await launchUrl(mapsUrl, mode: LaunchMode.externalApplication);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Gagal membuka Google Maps')),
-      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal membuka Google Maps')),
+        );
+      }
     }
   }
 

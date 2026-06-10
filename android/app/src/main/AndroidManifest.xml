@@ -1,8 +1,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.project2">
-
+<queries>
+    <intent>
+        <action android:name="android.intent.action.VIEW" />
+        <data android:scheme="https" />
+    </intent>
+    <intent>
+        <action android:name="android.intent.action.VIEW" />
+        <data android:scheme="geo" />
+    </intent>
+</queries>
     <application
-        android:label="Project2"
+        android:label="Wiskuyy"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"
         android:name="${applicationName}">
